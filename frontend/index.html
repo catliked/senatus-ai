@@ -208,20 +208,20 @@
 <!-- STATS BAR -->
 <div class="stats-bar">
   <div class="stat">
-    <span class="stat-num" style="color:var(--accent)">12</span>
-    <div class="stat-meta"><span class="stat-label">Active Committees</span><span class="stat-sub">↑3 from yesterday</span></div>
+    <span class="stat-num" style="color:var(--accent)" id="activeCount">0</span>
+    <div class="stat-meta"><span class="stat-label">Active Committees</span><span class="stat-sub" id="activeSub">No activity yet</span></div>
   </div>
   <div class="stat">
-    <span class="stat-num" style="color:var(--amber)" id="awaitingCount">3</span>
+    <span class="stat-num" style="color:var(--amber)" id="awaitingCount">0</span>
     <div class="stat-meta"><span class="stat-label">Awaiting Human Review</span><span class="stat-sub">Avg wait: 4.2 min</span></div>
   </div>
   <div class="stat">
-    <span class="stat-num" style="color:var(--green)">27</span>
-    <div class="stat-meta"><span class="stat-label">Approved Today</span><span class="stat-sub">81% approval rate</span></div>
+    <span class="stat-num" style="color:var(--green)" id="approvedCount">0</span>
+    <div class="stat-meta"><span class="stat-label">Approved Today</span><span class="stat-sub" id="approvedSub">No approvals yet</span></div>
   </div>
   <div class="stat">
-    <span class="stat-num" style="color:var(--red)">2</span>
-    <div class="stat-meta"><span class="stat-label">Overridden Decisions</span><span class="stat-sub">Human override active</span></div>
+    <span class="stat-num" style="color:var(--red)" id="overrideCount">0</span>
+    <div class="stat-meta"><span class="stat-label">Overridden Decisions</span><span class="stat-sub" id="overrideSub">No overrides yet</span></div>
   </div>
 </div>
 
@@ -474,6 +474,42 @@ function genLabels(days) {
 const labels = genLabels(90);
 let priceChart, portChart, currentTicker = 'NVDA';
 
+// ── TICKER DEFAULTS ──────────────────────────────────────────────────────
+const TICKER_THESIS = {
+  NVDA: "NVDA is the infrastructure layer for the AI boom with a durable competitive moat via CUDA ecosystem.",
+  MSFT: "MSFT is a dominant cloud and AI platform benefiting from enterprise digital transformation at scale.",
+  AAPL: "AAPL maintains premium brand loyalty with growing Services revenue offsetting hardware cyclicality.",
+  GOOGL: "GOOGL's advertising monopoly and AI capabilities position it well despite antitrust headwinds.",
+  AMZN: "AMZN's AWS margin expansion and advertising growth justify premium valuation vs e-commerce.",
+  META: "META's AI-driven ad efficiency and Llama model ecosystem underpin its dominant social media position.",
+};
+const TICKER_TARGET = { NVDA:'$950.00', MSFT:'$510.00', AAPL:'$240.00', GOOGL:'$215.00', AMZN:'$255.00', META:'$690.00' };
+const TICKER_CONS   = { NVDA:'STRONG BUY', MSFT:'STRONG BUY', AAPL:'BUY', GOOGL:'BUY', AMZN:'STRONG BUY', META:'BUY' };
+
+// ── STATS (localStorage) ─────────────────────────────────────────────────
+function loadStats() {
+  try { return JSON.parse(localStorage.getItem('senatus_stats')) || { active:0, awaiting:0, approved:0, overrides:0 }; }
+  catch(e) { return { active:0, awaiting:0, approved:0, overrides:0 }; }
+}
+function saveStats(s) { try { localStorage.setItem('senatus_stats', JSON.stringify(s)); } catch(e) {} }
+function renderStats() {
+  const s = loadStats();
+  document.getElementById('activeCount').textContent = s.active;
+  document.getElementById('awaitingCount').textContent = s.awaiting;
+  document.getElementById('approvedCount').textContent = s.approved;
+  document.getElementById('overrideCount').textContent = s.overrides;
+  document.getElementById('activeSub').textContent = s.active === 0 ? 'No activity yet' : '↑' + s.active + ' convened this session';
+  const pct = s.active > 0 ? Math.round((s.approved / s.active) * 100) : 0;
+  document.getElementById('approvedSub').textContent = s.approved === 0 ? 'No approvals yet' : pct + '% approval rate';
+  document.getElementById('overrideSub').textContent = s.overrides === 0 ? 'No overrides yet' : s.overrides + ' override' + (s.overrides === 1 ? '' : 's') + ' this session';
+}
+function bumpStat(key, delta) {
+  const s = loadStats();
+  s[key] = Math.max(0, (s[key] || 0) + delta);
+  saveStats(s);
+  renderStats();
+}
+
 function initPriceChart(tick) {
   const d = TICKER_DATA[tick];
   const prices = d.prices;
@@ -554,7 +590,17 @@ function selectTicker(el) {
   document.getElementById('disp-rev').textContent = '+' + t.rev;
   document.getElementById('disp-range').textContent = t.range;
   document.getElementById('disp-de').textContent = t.de;
+  document.getElementById('disp-tgt').textContent = TICKER_TARGET[t.tick] || '—';
+  const consEl = document.getElementById('disp-cons');
+  const cons = TICKER_CONS[t.tick] || '—';
+  consEl.textContent = cons;
+  consEl.className = 's-mv' + (cons === 'STRONG BUY' ? ' pos' : cons === 'SELL' ? ' neg' : '');
   document.getElementById('wf-ticker').textContent = t.tick;
+  if (TICKER_THESIS[t.tick]) document.getElementById('thesisIn').value = TICKER_THESIS[t.tick];
+  if (!analysisRunning) {
+    document.getElementById('mo-text').textContent = 'READY TO ANALYZE: ' + t.tick;
+    document.getElementById('mo-conf').textContent = 'Convene the committee to begin deliberation';
+  }
   initPriceChart(t.tick);
 }
 
@@ -631,7 +677,7 @@ function activatePortal(verdict, confidence) {
   document.getElementById('btnRequest').disabled = false;
   document.getElementById('mo-text').textContent = 'MOTION: ' + verdict + ' — ' + currentTicker;
   document.getElementById('mo-conf').textContent = 'Final committee confidence: ' + confidence + '%';
-  document.getElementById('awaitingCount').textContent = parseInt(document.getElementById('awaitingCount').textContent) + 1;
+  bumpStat('awaiting', 1);
 }
 
 let analysisRunning = false;
@@ -684,6 +730,7 @@ async function startAnalysis() {
     }
 
     showStatus('ok', `Committee convened for ${ticker}. Watch the Band room for live deliberation.`);
+    bumpStat('active', 1);
     addAudit('System', `Committee #2847 convened for ${ticker} — ${new Date().toLocaleTimeString()}`);
 
     // Simulate workflow progression
@@ -777,6 +824,8 @@ function humanApprove() {
   document.getElementById('btnOverride').disabled = true;
   document.getElementById('btnRequest').disabled = true;
   addAudit('Human', '✅ APPROVED — Decision logged. Audit trail complete. Committee #2847 closed.');
+  bumpStat('awaiting', -1);
+  bumpStat('approved', 1);
   document.getElementById('mo-text').textContent = 'APPROVED: BUY — ' + currentTicker;
   document.getElementById('mo-conf').textContent = 'Human chairperson confirmed · Audit trail sealed';
 }
@@ -789,6 +838,8 @@ function humanOverride() {
   setVote('human', 'OVERRIDE: ' + v, v === 'BUY' ? 'vb-buy' : v === 'AVOID' ? 'vb-avoid' : 'vb-pend');
   setStage(7, v === 'HOLD' ? 'warn' : 'done', 'Human override: ' + v, now());
   addAudit('Human', '⚠️ OVERRIDE DECISION: ' + v + ' — Human chairperson exercised authority');
+  bumpStat('awaiting', -1);
+  bumpStat('overrides', 1);
   document.getElementById('portalStatus').textContent = 'OVERRIDDEN';
   document.getElementById('btnApprove').disabled = true;
   document.getElementById('btnOverride').disabled = true;
@@ -810,9 +861,19 @@ function showStatus(type, msg) {
 document.addEventListener('DOMContentLoaded', () => {
   initPriceChart('NVDA');
   initPortChart();
+  renderStats();
   document.getElementById('agentCount').textContent = '5/5 online';
+  document.getElementById('mo-text').textContent = 'READY TO ANALYZE: NVDA';
+  document.getElementById('mo-conf').textContent = 'Convene the committee to begin deliberation';
   document.getElementById('tickerIn').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('thesisIn').focus();
+  });
+  document.getElementById('tickerIn').addEventListener('input', e => {
+    const t = e.target.value.toUpperCase().trim();
+    if (!analysisRunning) {
+      document.getElementById('mo-text').textContent = t ? 'READY TO ANALYZE: ' + t : 'AWAITING DELIBERATION';
+      document.getElementById('mo-conf').textContent = t ? 'Convene the committee to begin deliberation' : 'Committee not yet convened';
+    }
   });
 });
 </script>
