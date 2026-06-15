@@ -1,0 +1,10 @@
+band-sdk[anthropic]
+yfinance
+openai
+anthropic
+python-dotenv
+fastapi
+uvicorn[standard]
+requests
+pyyaml
+httpx

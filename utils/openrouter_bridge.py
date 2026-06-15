@@ -1,0 +1,83 @@
+"""
+OpenRouter → Anthropic SDK bridge for Band SDK compatibility.
+
+The Band SDK's AnthropicAdapter calls:
+    self.client.messages.create(model, max_tokens, system, messages, tools)
+and expects an anthropic.types.Message back.
+
+This bridge intercepts that call, converts to OpenAI format, hits OpenRouter's
+free-tier API, and wraps the response back into Anthropic format.
+
+Usage:
+    from utils.openrouter_bridge import OpenRouterBridge
+    adapter.client = OpenRouterBridge(api_key=OPENROUTER_KEY, model="mistralai/mistral-7b-instruct:free")
+    # To change model: set OPENROUTER_MODEL in .env
+"""
+
+from openai import AsyncOpenAI
+from anthropic.types import Message, TextBlock, Usage
+
+
+class _MessagesNamespace:
+    def __init__(self, parent: "OpenRouterBridge"):
+        self._parent = parent
+
+    async def create(self, model, max_tokens, system, messages, tools=None, **kwargs):
+        return await self._parent._create(max_tokens, system, messages)
+
+
+class OpenRouterBridge:
+    """Drop-in replacement for AsyncAnthropic that routes through OpenRouter."""
+
+    def __init__(self, api_key: str, model: str):
+        self._model = model
+        self._openai = AsyncOpenAI(
+            api_key=api_key,
+            base_url="https://openrouter.ai/api/v1",
+            default_headers={
+                "HTTP-Referer": "https://senatus.ai",
+                "X-Title": "Senatus AI Investment Committee",
+            },
+        )
+        self.messages = _MessagesNamespace(self)
+
+    def _to_openai_messages(self, system: str, messages: list) -> list:
+        result = [{"role": "system", "content": system}]
+        for msg in messages:
+            role = msg["role"]
+            content = msg["content"]
+            if isinstance(content, list):
+                parts = []
+                for block in content:
+                    if isinstance(block, dict):
+                        if block.get("type") == "text":
+                            parts.append(block.get("text", ""))
+                        elif block.get("type") == "tool_result":
+                            parts.append(f"[Tool result: {block.get('content', '')}]")
+                    elif hasattr(block, "text"):
+                        parts.append(block.text)
+                content = " ".join(parts) if parts else "[empty]"
+            result.append({"role": role, "content": str(content)})
+        return result
+
+    async def _create(self, max_tokens: int, system: str, messages: list) -> Message:
+        openai_messages = self._to_openai_messages(system, messages)
+        response = await self._openai.chat.completions.create(
+            model=self._model,
+            max_tokens=max_tokens,
+            messages=openai_messages,
+        )
+        text = response.choices[0].message.content or ""
+        return Message(
+            id=response.id,
+            type="message",
+            role="assistant",
+            content=[TextBlock(type="text", text=text)],
+            model=self._model,
+            stop_reason="end_turn",
+            stop_sequence=None,
+            usage=Usage(
+                input_tokens=response.usage.prompt_tokens if response.usage else 0,
+                output_tokens=response.usage.completion_tokens if response.usage else 0,
+            ),
+        )

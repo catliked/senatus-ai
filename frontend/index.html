@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Senatus AI — Enterprise Investment Committee Platform</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    :root{
+      --bg:#07090f;--card:#0d1117;--card2:#111820;--border:#1a2030;--border2:#212d40;
+      --text:#dde4f0;--muted:#4a5a74;--dim:#8a9ab8;
+      --accent:#7c3aed;--accent2:#6d28d9;
+      --green:#10b981;--red:#ef4444;--amber:#f59e0b;--blue:#3b82f6;
+      --green-bg:rgba(16,185,129,.08);--red-bg:rgba(239,68,68,.08);--amber-bg:rgba(245,158,11,.08);
+    }
+    body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;font-size:12px;}
+
+    /* ── NAVBAR ── */
+    .nav{display:flex;align-items:center;justify-content:space-between;height:46px;padding:0 20px;background:var(--card);border-bottom:1px solid var(--border);position:fixed;top:0;left:0;right:0;z-index:200;}
+    .nav-brand{display:flex;align-items:center;gap:12px;}
+    .nav-logo{font-size:15px;font-weight:800;letter-spacing:.06em;color:var(--accent);}
+    .nav-sep{width:1px;height:20px;background:var(--border2);}
+    .nav-sub{font-size:10px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;}
+    .nav-right{display:flex;align-items:center;gap:16px;}
+    .live-badge{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.06em;}
+    .live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 1.4s infinite;}
+    @keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+    .nav-tag{font-size:10px;color:var(--muted);background:var(--card2);border:1px solid var(--border2);border-radius:4px;padding:3px 8px;}
+    .band-btn{font-size:10px;font-weight:600;color:var(--accent);background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.3);border-radius:4px;padding:4px 10px;cursor:pointer;text-decoration:none;letter-spacing:.03em;}
+    .band-btn:hover{background:rgba(124,58,237,.2);}
+
+    /* ── STATS BAR ── */
+    .stats-bar{display:grid;grid-template-columns:repeat(4,1fr);height:54px;border-bottom:1px solid var(--border);margin-top:46px;background:var(--card);}
+    .stat{display:flex;align-items:center;gap:12px;padding:0 20px;border-right:1px solid var(--border);}
+    .stat:last-child{border-right:none;}
+    .stat-num{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;}
+    .stat-meta{display:flex;flex-direction:column;gap:1px;}
+    .stat-label{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;}
+    .stat-sub{font-size:9px;color:var(--dim);}
+
+    /* ── MAIN LAYOUT ── */
+    .shell{display:grid;grid-template-columns:210px 1fr 310px;height:calc(100vh - 100px);overflow:hidden;}
+
+    /* ── PANELS ── */
+    .panel{overflow-y:auto;display:flex;flex-direction:column;}
+    .panel-l{border-right:1px solid var(--border);}
+    .panel-r{border-left:1px solid var(--border);}
+
+    /* scrollbar */
+    ::-webkit-scrollbar{width:3px;} ::-webkit-scrollbar-thumb{background:var(--border2);}
+
+    /* ── SECTION HEADS ── */
+    .sh{padding:8px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+    .sh-title{font-size:9px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;color:var(--muted);}
+    .sh-badge{font-size:9px;color:var(--dim);background:var(--card2);border:1px solid var(--border2);border-radius:3px;padding:1px 6px;}
+
+    /* ── WATCHLIST ── */
+    .wl-item{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;}
+    .wl-item:hover{background:var(--card2);}
+    .wl-item.sel{background:rgba(124,58,237,.07);border-left:2px solid var(--accent);}
+    .wl-l{display:flex;flex-direction:column;gap:1px;}
+    .wl-tick{font-size:12px;font-weight:700;letter-spacing:.02em;}
+    .wl-co{font-size:9px;color:var(--muted);}
+    .wl-r{text-align:right;}
+    .wl-price{font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;}
+    .wl-chg{font-size:9px;font-variant-numeric:tabular-nums;}
+    .pos{color:var(--green);} .neg{color:var(--red);}
+
+    /* ── FORM ── */
+    .form-box{padding:12px 14px;border-bottom:1px solid var(--border);}
+    .fl{font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--muted);display:block;margin-bottom:4px;}
+    .fi{width:100%;background:rgba(255,255,255,.03);border:1px solid var(--border2);border-radius:4px;padding:6px 9px;color:var(--text);font-size:12px;font-family:inherit;outline:none;transition:border .15s;margin-bottom:7px;}
+    .fi:focus{border-color:var(--accent);}
+    .fi::placeholder{color:var(--muted);}
+    textarea.fi{resize:vertical;min-height:56px;}
+    .btn{width:100%;padding:8px;background:var(--accent);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.04em;text-transform:uppercase;transition:background .15s;}
+    .btn:hover{background:var(--accent2);}
+    .btn:disabled{background:var(--muted);cursor:not-allowed;opacity:.6;}
+    #statusMsg{margin-top:6px;padding:6px 9px;border-radius:4px;font-size:10px;display:none;}
+    #statusMsg.ok{background:var(--green-bg);border:1px solid rgba(16,185,129,.25);color:var(--green);display:block;}
+    #statusMsg.err{background:var(--red-bg);border:1px solid rgba(239,68,68,.25);color:var(--red);display:block;}
+    #statusMsg.loading{background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.2);color:#a78bfa;display:block;}
+
+    /* ── AGENT STATUS ── */
+    .ag-item{display:flex;align-items:center;justify-content:space-between;padding:7px 14px;border-bottom:1px solid var(--border);}
+    .ag-l{display:flex;align-items:center;gap:7px;}
+    .ag-dot{width:5px;height:5px;border-radius:50%;background:var(--muted);}
+    .ag-dot.on{background:var(--green);animation:blink 2s infinite;}
+    .ag-dot.act{background:var(--amber);animation:blink .7s infinite;}
+    .ag-name{font-size:11px;font-weight:600;}
+    .ag-role{font-size:9px;color:var(--muted);}
+    .ag-score{font-size:10px;font-weight:700;color:var(--dim);}
+
+    /* ── PORTFOLIO CHART ── */
+    .port-box{padding:10px 14px;border-bottom:1px solid var(--border);}
+    .port-chart-wrap{height:90px;position:relative;}
+    .port-legend{margin-top:6px;display:flex;flex-direction:column;gap:2px;}
+    .leg-row{display:flex;align-items:center;justify-content:space-between;}
+    .leg-l{display:flex;align-items:center;gap:5px;font-size:9px;color:var(--dim);}
+    .leg-dot{width:6px;height:6px;border-radius:50%;}
+    .leg-pct{font-size:9px;font-weight:700;font-variant-numeric:tabular-nums;}
+
+    /* ── STOCK HEADER ── */
+    .stock-hdr{padding:14px 18px 10px;border-bottom:1px solid var(--border);}
+    .stock-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;}
+    .s-tick{font-size:20px;font-weight:800;letter-spacing:.02em;}
+    .s-co{font-size:10px;color:var(--dim);margin-top:1px;}
+    .s-price{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;text-align:right;}
+    .s-chg{font-size:10px;text-align:right;margin-top:1px;}
+    .s-metrics{display:grid;grid-template-columns:repeat(4,1fr);}
+    .s-m{padding:7px 10px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);}
+    .s-m:last-child{border-right:none;}
+    .s-ml{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;}
+    .s-mv{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px;}
+
+    /* ── STOCK CHART ── */
+    .chart-wrap{padding:6px 18px 8px;border-bottom:1px solid var(--border);height:150px;}
+
+    /* ── WORKFLOW ── */
+    .wf-box{padding:12px 18px;border-bottom:1px solid var(--border);}
+    .wf-hd{font-size:9px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;color:var(--muted);margin-bottom:10px;}
+    .stages{display:flex;flex-direction:column;gap:0;}
+    .stage{display:flex;align-items:flex-start;gap:10px;padding:5px 0;position:relative;}
+    .stage:not(:last-child)::after{content:'';position:absolute;left:10px;top:28px;width:1.5px;height:10px;background:var(--border2);}
+    .s-icon{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;color:var(--muted);background:var(--bg);transition:all .4s;}
+    .stage.done .s-icon{background:var(--green);border-color:var(--green);color:#fff;}
+    .stage.active .s-icon{border-color:var(--accent);color:var(--accent);animation:stagePulse 1.5s infinite;}
+    .stage.warn .s-icon{background:var(--amber);border-color:var(--amber);color:#fff;}
+    @keyframes stagePulse{0%,100%{box-shadow:0 0 0 0 rgba(124,58,237,.4);}50%{box-shadow:0 0 0 5px rgba(124,58,237,0);}}
+    .s-info{flex:1;}
+    .s-name{font-size:11px;font-weight:600;}
+    .s-detail{font-size:9px;color:var(--muted);margin-top:1px;}
+    .s-time{font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:2px;}
+
+    /* ── AUDIT TRAIL ── */
+    .audit-box{padding:10px 18px 14px;}
+    .audit-item{display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);}
+    .a-time{font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums;flex-shrink:0;width:40px;padding-top:1px;}
+    .a-body{font-size:10px;color:var(--dim);line-height:1.4;}
+    .a-agent{font-weight:700;color:var(--text);}
+
+    /* ── VOTING BOARD ── */
+    .vote-box{padding:12px 14px;border-bottom:1px solid var(--border);}
+    .motion-card{background:rgba(124,58,237,.07);border:1px solid rgba(124,58,237,.2);border-radius:5px;padding:9px 11px;margin-bottom:10px;}
+    .mo-label{font-size:8px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);font-weight:700;}
+    .mo-text{font-size:14px;font-weight:800;margin-top:2px;letter-spacing:.04em;}
+    .mo-conf{font-size:9px;color:var(--dim);margin-top:2px;}
+    .v-item{display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);}
+    .v-item:last-child{border-bottom:none;}
+    .v-who{display:flex;flex-direction:column;gap:1px;}
+    .v-name{font-size:11px;font-weight:600;}
+    .v-role{font-size:9px;color:var(--muted);}
+    .v-badge{padding:2px 9px;border-radius:20px;font-size:9px;font-weight:700;letter-spacing:.04em;}
+    .vb-buy{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.25);}
+    .vb-avoid{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.25);}
+    .vb-clear{background:rgba(59,130,246,.12);color:var(--blue);border:1px solid rgba(59,130,246,.25);}
+    .vb-pend{background:rgba(74,90,116,.1);color:var(--muted);border:1px solid var(--border2);}
+
+    /* ── RISK MATRIX ── */
+    .risk-box{padding:12px 14px;border-bottom:1px solid var(--border);}
+    .risk-row{display:flex;align-items:center;gap:8px;padding:4px 0;}
+    .r-label{font-size:10px;color:var(--dim);flex:0 0 88px;}
+    .r-track{flex:1;height:4px;background:var(--border2);border-radius:2px;overflow:hidden;}
+    .r-fill{height:100%;border-radius:2px;width:0;transition:width 1.2s ease;}
+    .r-fill.low{background:var(--green);}
+    .r-fill.med{background:var(--amber);}
+    .r-fill.high{background:var(--red);}
+    .r-num{font-size:9px;font-weight:700;font-variant-numeric:tabular-nums;width:24px;text-align:right;}
+
+    /* ── HUMAN PORTAL ── */
+    .portal-box{padding:12px 14px;}
+    .verdict-panel{text-align:center;padding:14px;border-radius:6px;border:1px solid var(--border2);background:var(--card2);margin-bottom:10px;transition:all .4s;}
+    .verdict-panel.buy{background:var(--green-bg);border-color:rgba(16,185,129,.3);}
+    .verdict-panel.hold{background:var(--amber-bg);border-color:rgba(245,158,11,.3);}
+    .verdict-panel.avoid{background:var(--red-bg);border-color:rgba(239,68,68,.3);}
+    .vp-label{font-size:8px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700;}
+    .vp-verdict{font-size:26px;font-weight:900;letter-spacing:.06em;margin:4px 0;line-height:1;}
+    .vp-conf{font-size:10px;color:var(--dim);}
+    .vp-meta{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;}
+    .vm-box{background:var(--card2);border:1px solid var(--border2);border-radius:4px;padding:7px;text-align:center;}
+    .vm-num{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;}
+    .vm-desc{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:1px;}
+    .portal-btns{display:flex;flex-direction:column;gap:5px;}
+    .btn-approve{padding:9px;background:var(--green);color:#fff;border:none;border-radius:4px;font-size:10px;font-weight:800;cursor:pointer;letter-spacing:.06em;text-transform:uppercase;transition:background .15s;}
+    .btn-approve:hover{background:#059669;}
+    .btn-override{padding:9px;background:transparent;color:var(--amber);border:1px solid rgba(245,158,11,.5);border-radius:4px;font-size:10px;font-weight:800;cursor:pointer;letter-spacing:.06em;text-transform:uppercase;}
+    .btn-request{padding:9px;background:transparent;color:var(--dim);border:1px solid var(--border2);border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;}
+    .btn-approve:disabled,.btn-override:disabled,.btn-request:disabled{opacity:.3;cursor:not-allowed;}
+  </style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="nav">
+  <div class="nav-brand">
+    <span class="nav-logo">SENATUS AI</span>
+    <div class="nav-sep"></div>
+    <span class="nav-sub">Enterprise Investment Committee Platform</span>
+  </div>
+  <div class="nav-right">
+    <span class="nav-tag">Committee #2847</span>
+    <div class="live-badge"><div class="live-dot"></div>MARKET OPEN</div>
+    <a id="bandRoomLink" href="#" class="band-btn" target="_blank">Open Band Room →</a>
+  </div>
+</nav>
+
+<!-- STATS BAR -->
+<div class="stats-bar">
+  <div class="stat">
+    <span class="stat-num" style="color:var(--accent)">12</span>
+    <div class="stat-meta"><span class="stat-label">Active Committees</span><span class="stat-sub">↑3 from yesterday</span></div>
+  </div>
+  <div class="stat">
+    <span class="stat-num" style="color:var(--amber)" id="awaitingCount">3</span>
+    <div class="stat-meta"><span class="stat-label">Awaiting Human Review</span><span class="stat-sub">Avg wait: 4.2 min</span></div>
+  </div>
+  <div class="stat">
+    <span class="stat-num" style="color:var(--green)">27</span>
+    <div class="stat-meta"><span class="stat-label">Approved Today</span><span class="stat-sub">81% approval rate</span></div>
+  </div>
+  <div class="stat">
+    <span class="stat-num" style="color:var(--red)">2</span>
+    <div class="stat-meta"><span class="stat-label">Overridden Decisions</span><span class="stat-sub">Human override active</span></div>
+  </div>
+</div>
+
+<!-- MAIN 3-COLUMN SHELL -->
+<div class="shell">
+
+  <!-- ═══ LEFT PANEL ═══ -->
+  <div class="panel panel-l">
+
+    <div class="sh"><span class="sh-title">Watchlist</span><span class="sh-badge">6 tracked</span></div>
+
+    <div class="wl-item sel" data-tick="NVDA" data-co="NVIDIA Corporation" data-price="875.40" data-chg="+2.14" data-pct="+0.24%"
+         data-pe="68.2" data-fpe="32.1" data-cap="$2.15T" data-rev="122%" data-range="$455–$974" data-de="0.41" onclick="selectTicker(this)">
+      <div class="wl-l"><span class="wl-tick">NVDA</span><span class="wl-co">NVIDIA</span></div>
+      <div class="wl-r"><div class="wl-price">$875.40</div><div class="wl-chg pos">+0.24%</div></div>
+    </div>
+    <div class="wl-item" data-tick="MSFT" data-co="Microsoft Corporation" data-price="458.20" data-chg="+3.10" data-pct="+0.68%"
+         data-pe="32.4" data-fpe="28.1" data-cap="$3.41T" data-rev="17%" data-range="$362–$480" data-de="0.31" onclick="selectTicker(this)">
+      <div class="wl-l"><span class="wl-tick">MSFT</span><span class="wl-co">Microsoft</span></div>
+      <div class="wl-r"><div class="wl-price">$458.20</div><div class="wl-chg pos">+0.68%</div></div>
+    </div>
+    <div class="wl-item" data-tick="AAPL" data-co="Apple Inc." data-price="225.80" data-chg="-1.20" data-pct="-0.53%"
+         data-pe="35.1" data-fpe="31.2" data-cap="$3.38T" data-rev="4%" data-range="$184–$242" data-de="1.87" onclick="selectTicker(this)">
+      <div class="wl-l"><span class="wl-tick">AAPL</span><span class="wl-co">Apple</span></div>
+      <div class="wl-r"><div class="wl-price">$225.80</div><div class="wl-chg neg">-0.53%</div></div>
+    </div>
+    <div class="wl-item" data-tick="GOOGL" data-co="Alphabet Inc." data-price="198.40" data-chg="+4.20" data-pct="+2.16%"
+         data-pe="22.8" data-fpe="18.4" data-cap="$2.47T" data-rev="12%" data-range="$155–$210" data-de="0.08" onclick="selectTicker(this)">
+      <div class="wl-l"><span class="wl-tick">GOOGL</span><span class="wl-co">Alphabet</span></div>
+      <div class="wl-r"><div class="wl-price">$198.40</div><div class="wl-chg pos">+2.16%</div></div>
+    </div>
+    <div class="wl-item" data-tick="AMZN" data-co="Amazon.com Inc." data-price="228.90" data-chg="+1.80" data-pct="+0.79%"
+         data-pe="41.2" data-fpe="34.8" data-cap="$2.42T" data-rev="11%" data-range="$178–$240" data-de="0.54" onclick="selectTicker(this)">
+      <div class="wl-l"><span class="wl-tick">AMZN</span><span class="wl-co">Amazon</span></div>
+      <div class="wl-r"><div class="wl-price">$228.90</div><div class="wl-chg pos">+0.79%</div></div>
+    </div>
+    <div class="wl-item" data-tick="META" data-co="Meta Platforms Inc." data-price="634.50" data-chg="-3.40" data-pct="-0.53%"
+         data-pe="26.4" data-fpe="23.1" data-cap="$1.59T" data-rev="21%" data-range="$481–$660" data-de="0.27" onclick="selectTicker(this)">
+      <div class="wl-l"><span class="wl-tick">META</span><span class="wl-co">Meta</span></div>
+      <div class="wl-r"><div class="wl-price">$634.50</div><div class="wl-chg neg">-0.53%</div></div>
+    </div>
+
+    <div class="sh" style="margin-top:0"><span class="sh-title">New Analysis</span></div>
+    <div class="form-box">
+      <label class="fl" for="tickerIn">Ticker Symbol</label>
+      <input class="fi" type="text" id="tickerIn" placeholder="NVDA" maxlength="10" autocapitalize="characters" value="NVDA"/>
+      <label class="fl" for="thesisIn">Investment Thesis</label>
+      <textarea class="fi" id="thesisIn" placeholder="Why should the committee analyze this stock?">NVDA is the infrastructure layer for the AI boom with a durable competitive moat via CUDA ecosystem.</textarea>
+      <button class="btn" id="submitBtn" onclick="startAnalysis()">Convene the Committee</button>
+      <div id="statusMsg"></div>
+    </div>
+
+    <div class="sh"><span class="sh-title">Committee Agents</span><span class="sh-badge" id="agentCount">0/5 online</span></div>
+    <div class="ag-item"><div class="ag-l"><div class="ag-dot on" id="dot-research"></div><div><div class="ag-name">ResearchAgent</div><div class="ag-role">Data Gatherer</div></div></div><span class="ag-score" id="score-research">95%</span></div>
+    <div class="ag-item"><div class="ag-l"><div class="ag-dot on" id="dot-bull"></div><div><div class="ag-name">BullAnalyst</div><div class="ag-role">Bull Thesis</div></div></div><span class="ag-score" id="score-bull">87%</span></div>
+    <div class="ag-item"><div class="ag-l"><div class="ag-dot on" id="dot-bear"></div><div><div class="ag-name">BearAnalyst</div><div class="ag-role">Bear Thesis</div></div></div><span class="ag-score" id="score-bear">91%</span></div>
+    <div class="ag-item"><div class="ag-l"><div class="ag-dot on" id="dot-compliance"></div><div><div class="ag-name">ComplianceOfficer</div><div class="ag-role">Regulatory Review</div></div></div><span class="ag-score" id="score-compliance">78%</span></div>
+    <div class="ag-item"><div class="ag-l"><div class="ag-dot on" id="dot-synthesis"></div><div><div class="ag-name">SynthesisChair</div><div class="ag-role">Chairperson</div></div></div><span class="ag-score" id="score-synthesis">93%</span></div>
+
+    <div class="sh"><span class="sh-title">Portfolio Exposure</span></div>
+    <div class="port-box">
+      <div class="port-chart-wrap"><canvas id="portChart"></canvas></div>
+      <div class="port-legend">
+        <div class="leg-row"><div class="leg-l"><div class="leg-dot" style="background:#7c3aed"></div>Technology</div><span class="leg-pct">42%</span></div>
+        <div class="leg-row"><div class="leg-l"><div class="leg-dot" style="background:#3b82f6"></div>Financials</div><span class="leg-pct">21%</span></div>
+        <div class="leg-row"><div class="leg-l"><div class="leg-dot" style="background:#10b981"></div>Healthcare</div><span class="leg-pct">18%</span></div>
+        <div class="leg-row"><div class="leg-l"><div class="leg-dot" style="background:#f59e0b"></div>Energy</div><span class="leg-pct">9%</span></div>
+        <div class="leg-row"><div class="leg-l"><div class="leg-dot" style="background:#4a5a74"></div>Other</div><span class="leg-pct">10%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ MIDDLE PANEL ═══ -->
+  <div class="panel">
+
+    <!-- Stock Header -->
+    <div class="stock-hdr">
+      <div class="stock-top">
+        <div><div class="s-tick" id="disp-tick">NVDA</div><div class="s-co" id="disp-co">NVIDIA Corporation</div></div>
+        <div><div class="s-price" id="disp-price">$875.40</div><div class="s-chg pos" id="disp-chg">▲ $2.14 (+0.24%)</div></div>
+      </div>
+      <div class="s-metrics">
+        <div class="s-m"><div class="s-ml">P/E (TTM)</div><div class="s-mv" id="disp-pe">68.2x</div></div>
+        <div class="s-m"><div class="s-ml">Fwd P/E</div><div class="s-mv" id="disp-fpe">32.1x</div></div>
+        <div class="s-m"><div class="s-ml">Market Cap</div><div class="s-mv" id="disp-cap">$2.15T</div></div>
+        <div class="s-m"><div class="s-ml">Rev Growth</div><div class="s-mv pos" id="disp-rev">+122%</div></div>
+        <div class="s-m"><div class="s-ml">52W Range</div><div class="s-mv" id="disp-range">$455–$974</div></div>
+        <div class="s-m"><div class="s-ml">Debt/Equity</div><div class="s-mv" id="disp-de">0.41</div></div>
+        <div class="s-m"><div class="s-ml">Analyst Target</div><div class="s-mv" id="disp-tgt">$950.00</div></div>
+        <div class="s-m"><div class="s-ml">Consensus</div><div class="s-mv pos" id="disp-cons">STRONG BUY</div></div>
+      </div>
+    </div>
+
+    <!-- Price Chart -->
+    <div class="chart-wrap"><canvas id="priceChart"></canvas></div>
+
+    <!-- Workflow Tracker -->
+    <div class="wf-box">
+      <div class="wf-hd">Committee Workflow — <span id="wf-ticker">NVDA</span></div>
+      <div class="stages">
+        <div class="stage" id="st-1">
+          <div class="s-icon">1</div>
+          <div class="s-info"><div class="s-name">Research Brief</div><div class="s-detail" id="sd-1">ResearchAgent — data gathering & report formatting</div></div>
+          <div class="s-time" id="st-t1">—</div>
+        </div>
+        <div class="stage" id="st-2">
+          <div class="s-icon">2</div>
+          <div class="s-info"><div class="s-name">Bull Thesis</div><div class="s-detail" id="sd-2">BullAnalyst — constructing investment case</div></div>
+          <div class="s-time" id="st-t2">—</div>
+        </div>
+        <div class="stage" id="st-3">
+          <div class="s-icon">3</div>
+          <div class="s-info"><div class="s-name">Bear Thesis</div><div class="s-detail" id="sd-3">BearAnalyst — adversarial challenge</div></div>
+          <div class="s-time" id="st-t3">—</div>
+        </div>
+        <div class="stage" id="st-4">
+          <div class="s-icon">4</div>
+          <div class="s-info"><div class="s-name">Rebuttal Round</div><div class="s-detail" id="sd-4">BullAnalyst — one-round rebuttal</div></div>
+          <div class="s-time" id="st-t4">—</div>
+        </div>
+        <div class="stage" id="st-5">
+          <div class="s-icon">5</div>
+          <div class="s-info"><div class="s-name">Compliance Review</div><div class="s-detail" id="sd-5">ComplianceOfficer — regulatory screening</div></div>
+          <div class="s-time" id="st-t5">—</div>
+        </div>
+        <div class="stage" id="st-6">
+          <div class="s-icon">6</div>
+          <div class="s-info"><div class="s-name">Final Synthesis</div><div class="s-detail" id="sd-6">SynthesisChair — verdict & motion tally</div></div>
+          <div class="s-time" id="st-t6">—</div>
+        </div>
+        <div class="stage" id="st-7">
+          <div class="s-icon">7</div>
+          <div class="s-info"><div class="s-name">Human Review</div><div class="s-detail" id="sd-7">Awaiting chairperson approval</div></div>
+          <div class="s-time" id="st-t7">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Audit Trail -->
+    <div class="sh"><span class="sh-title">Audit Trail</span><span class="sh-badge" id="auditCount">0 entries</span></div>
+    <div class="audit-box" id="auditTrail">
+      <div style="padding:16px 0;text-align:center;color:var(--muted);font-size:10px;">No committee activity yet. Convene a committee to begin.</div>
+    </div>
+  </div>
+
+  <!-- ═══ RIGHT PANEL ═══ -->
+  <div class="panel panel-r">
+
+    <!-- Voting Board -->
+    <div class="sh"><span class="sh-title">Motion Voting Board</span></div>
+    <div class="vote-box">
+      <div class="motion-card">
+        <div class="mo-label">Current Motion</div>
+        <div class="mo-text" id="mo-text">AWAITING DELIBERATION</div>
+        <div class="mo-conf" id="mo-conf">Committee not yet convened</div>
+      </div>
+      <div class="v-item">
+        <div class="v-who"><div class="v-name">BullAnalyst</div><div class="v-role">Long thesis · haiku</div></div>
+        <div class="v-badge vb-pend" id="vote-bull">—</div>
+      </div>
+      <div class="v-item">
+        <div class="v-who"><div class="v-name">BearAnalyst</div><div class="v-role">Short thesis · sonnet</div></div>
+        <div class="v-badge vb-pend" id="vote-bear">—</div>
+      </div>
+      <div class="v-item">
+        <div class="v-who"><div class="v-name">ComplianceOfficer</div><div class="v-role">Regulatory · haiku</div></div>
+        <div class="v-badge vb-pend" id="vote-compliance">—</div>
+      </div>
+      <div class="v-item">
+        <div class="v-who"><div class="v-name">SynthesisChair</div><div class="v-role">Chairperson · sonnet</div></div>
+        <div class="v-badge vb-pend" id="vote-synthesis">—</div>
+      </div>
+      <div class="v-item">
+        <div class="v-who"><div class="v-name">Human Chairperson</div><div class="v-role">Final authority</div></div>
+        <div class="v-badge vb-pend" id="vote-human">PENDING</div>
+      </div>
+    </div>
+
+    <!-- Risk Matrix -->
+    <div class="sh"><span class="sh-title">Risk Assessment Matrix</span><span class="sh-badge" id="riskScore">—/100</span></div>
+    <div class="risk-box">
+      <div class="risk-row"><span class="r-label">Valuation Risk</span><div class="r-track"><div class="r-fill high" id="r-val" style="width:0"></div></div><span class="r-num" id="rn-val">—</span></div>
+      <div class="risk-row"><span class="r-label">Regulatory Risk</span><div class="r-track"><div class="r-fill low" id="r-reg" style="width:0"></div></div><span class="r-num" id="rn-reg">—</span></div>
+      <div class="risk-row"><span class="r-label">Liquidity Risk</span><div class="r-track"><div class="r-fill low" id="r-liq" style="width:0"></div></div><span class="r-num" id="rn-liq">—</span></div>
+      <div class="risk-row"><span class="r-label">Market Risk</span><div class="r-track"><div class="r-fill med" id="r-mkt" style="width:0"></div></div><span class="r-num" id="rn-mkt">—</span></div>
+      <div class="risk-row"><span class="r-label">Execution Risk</span><div class="r-track"><div class="r-fill low" id="r-exc" style="width:0"></div></div><span class="r-num" id="rn-exc">—</span></div>
+    </div>
+
+    <!-- Human Review Portal -->
+    <div class="sh"><span class="sh-title">Human Review Portal</span><span class="sh-badge" id="portalStatus">INACTIVE</span></div>
+    <div class="portal-box">
+      <div class="verdict-panel" id="verdictPanel">
+        <div class="vp-label">Committee Recommendation</div>
+        <div class="vp-verdict" id="vp-verdict" style="color:var(--muted)">—</div>
+        <div class="vp-conf" id="vp-conf">Awaiting synthesis</div>
+      </div>
+      <div class="vp-meta">
+        <div class="vm-box"><div class="vm-num pos" id="vm-bull">—</div><div class="vm-desc">Bull Args</div></div>
+        <div class="vm-box"><div class="vm-num neg" id="vm-bear">—</div><div class="vm-desc">Bear Args</div></div>
+        <div class="vm-box"><div class="vm-num" style="color:var(--amber)" id="vm-flags">—</div><div class="vm-desc">Comp. Flags</div></div>
+        <div class="vm-box"><div class="vm-num" style="color:var(--blue)" id="vm-conf">—</div><div class="vm-desc">Confidence</div></div>
+      </div>
+      <div class="portal-btns">
+        <button class="btn-approve" id="btnApprove" disabled onclick="humanApprove()">✓ APPROVE VERDICT</button>
+        <button class="btn-override" id="btnOverride" disabled onclick="humanOverride()">↺ OVERRIDE DECISION</button>
+        <button class="btn-request" id="btnRequest" disabled onclick="requestAnalysis()">Request Additional Analysis</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── PRICE CHART DATA ──────────────────────────────────────────────────────
+function seededRandom(seed) {
+  let s = seed;
+  return () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+}
+
+function genPrices(start, end, days, seed, volatility=12) {
+  const rand = seededRandom(seed);
+  const prices = [start];
+  for (let i = 1; i < days; i++) {
+    const trend = (end - prices[i-1]) / (days - i) * 0.3;
+    const noise = (rand() - 0.5) * volatility;
+    prices.push(Math.max(start*0.7, Math.min(start*1.5, prices[i-1] + trend + noise)));
+  }
+  return prices.map(p => Math.round(p * 100) / 100);
+}
+
+const TICKER_DATA = {
+  NVDA: { prices: genPrices(795, 875.40, 90, 42, 18), color: '#7c3aed' },
+  MSFT: { prices: genPrices(390, 458.20, 90, 17, 8), color: '#3b82f6' },
+  AAPL: { prices: genPrices(195, 225.80, 90, 99, 6), color: '#10b981' },
+  GOOGL: { prices: genPrices(165, 198.40, 90, 55, 7), color: '#f59e0b' },
+  AMZN: { prices: genPrices(198, 228.90, 90, 71, 7), color: '#ef4444' },
+  META: { prices: genPrices(545, 634.50, 90, 33, 14), color: '#8b5cf6' },
+};
+
+function genLabels(days) {
+  const labels = [];
+  const today = new Date('2026-06-15');
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today); d.setDate(d.getDate() - i);
+    labels.push(d.toLocaleDateString('en-US', { month:'short', day:'numeric' }));
+  }
+  return labels;
+}
+
+const labels = genLabels(90);
+let priceChart, portChart, currentTicker = 'NVDA';
+
+function initPriceChart(tick) {
+  const d = TICKER_DATA[tick];
+  const prices = d.prices;
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const ctx = document.getElementById('priceChart').getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, 140);
+  gradient.addColorStop(0, d.color + '33');
+  gradient.addColorStop(1, d.color + '00');
+  if (priceChart) priceChart.destroy();
+  priceChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: prices,
+        borderColor: d.color,
+        backgroundColor: gradient,
+        borderWidth: 1.5,
+        pointRadius: 0,
+        fill: true,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
+      plugins: { legend: { display: false }, tooltip: {
+        mode: 'index', intersect: false,
+        backgroundColor: '#111820', borderColor: '#1a2030', borderWidth: 1,
+        titleColor: '#8a9ab8', bodyColor: '#dde4f0', titleFont: { size: 9 }, bodyFont: { size: 11 },
+        callbacks: { label: ctx => ` $${ctx.raw.toFixed(2)}` }
+      }},
+      scales: {
+        x: { grid: { color: '#1a2030', drawBorder: false }, ticks: { color: '#4a5a74', maxTicksLimit: 6, font: { size: 9 } } },
+        y: { grid: { color: '#1a2030', drawBorder: false }, ticks: { color: '#4a5a74', font: { size: 9 }, callback: v => '$'+v.toFixed(0) },
+             suggestedMin: min * 0.97, suggestedMax: max * 1.02 }
+      }
+    }
+  });
+}
+
+function initPortChart() {
+  const ctx = document.getElementById('portChart').getContext('2d');
+  portChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Technology', 'Financials', 'Healthcare', 'Energy', 'Other'],
+      datasets: [{ data: [42, 21, 18, 9, 10], backgroundColor: ['#7c3aed','#3b82f6','#10b981','#f59e0b','#4a5a74'], borderWidth: 0, hoverOffset: 4 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '70%',
+      plugins: { legend: { display: false }, tooltip: {
+        backgroundColor: '#111820', borderColor: '#1a2030', borderWidth: 1,
+        bodyColor: '#dde4f0', bodyFont: { size: 10 },
+        callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw}%` }
+      }}
+    }
+  });
+}
+
+// ── WATCHLIST SELECTION ───────────────────────────────────────────────────
+function selectTicker(el) {
+  document.querySelectorAll('.wl-item').forEach(i => i.classList.remove('sel'));
+  el.classList.add('sel');
+  const t = el.dataset;
+  currentTicker = t.tick;
+  document.getElementById('tickerIn').value = t.tick;
+  document.getElementById('disp-tick').textContent = t.tick;
+  document.getElementById('disp-co').textContent = t.co;
+  document.getElementById('disp-price').textContent = '$' + t.price;
+  const isPos = parseFloat(t.chg) >= 0;
+  const chgEl = document.getElementById('disp-chg');
+  chgEl.textContent = (isPos ? '▲ +' : '▼ ') + t.chg + ' (' + t.pct + ')';
+  chgEl.className = 's-chg ' + (isPos ? 'pos' : 'neg');
+  document.getElementById('disp-pe').textContent = t.pe + 'x';
+  document.getElementById('disp-fpe').textContent = t.fpe + 'x';
+  document.getElementById('disp-cap').textContent = t.cap;
+  document.getElementById('disp-rev').textContent = '+' + t.rev;
+  document.getElementById('disp-range').textContent = t.range;
+  document.getElementById('disp-de').textContent = t.de;
+  document.getElementById('wf-ticker').textContent = t.tick;
+  initPriceChart(t.tick);
+}
+
+// ── AUDIT TRAIL ───────────────────────────────────────────────────────────
+let auditEntries = 0;
+function addAudit(agent, message) {
+  const now = new Date();
+  const time = now.toLocaleTimeString('en-US', { hour12: false, hour:'2-digit', minute:'2-digit' });
+  const trail = document.getElementById('auditTrail');
+  if (auditEntries === 0) trail.innerHTML = '';
+  trail.insertAdjacentHTML('afterbegin', `<div class="audit-item"><span class="a-time">${time}</span><div class="a-body"><span class="a-agent">${agent}</span> — ${message}</div></div>`);
+  auditEntries++;
+  document.getElementById('auditCount').textContent = auditEntries + ' entries';
+}
+
+// ── WORKFLOW SIMULATION ───────────────────────────────────────────────────
+function setStage(n, state, detail, time) {
+  const el = document.getElementById('st-' + n);
+  el.className = 'stage ' + state;
+  if (detail) document.getElementById('sd-' + n).textContent = detail;
+  if (time) document.getElementById('st-t' + n).textContent = time;
+}
+
+function setVote(who, text, cls) {
+  const el = document.getElementById('vote-' + who);
+  el.textContent = text;
+  el.className = 'v-badge ' + cls;
+}
+
+function setDot(id, cls) {
+  const el = document.getElementById('dot-' + id);
+  el.className = 'ag-dot ' + cls;
+}
+
+function now() {
+  return new Date().toLocaleTimeString('en-US', { hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
+}
+
+function animateRisk(vals) {
+  setTimeout(() => {
+    const [v, r, l, m, e] = vals;
+    animBar('r-val', 'rn-val', v);
+    animBar('r-reg', 'rn-reg', r);
+    animBar('r-liq', 'rn-liq', l);
+    animBar('r-mkt', 'rn-mkt', m);
+    animBar('r-exc', 'rn-exc', e);
+    const avg = Math.round((v + r + l + m + e) / 5);
+    document.getElementById('riskScore').textContent = avg + '/100';
+  }, 500);
+}
+
+function animBar(fillId, numId, val) {
+  document.getElementById(fillId).style.width = val + '%';
+  document.getElementById(numId).textContent = val;
+  const el = document.getElementById(numId);
+  el.style.color = val > 55 ? 'var(--red)' : val > 35 ? 'var(--amber)' : 'var(--green)';
+}
+
+function activatePortal(verdict, confidence) {
+  const vl = verdict.toLowerCase();
+  const panel = document.getElementById('verdictPanel');
+  panel.className = 'verdict-panel ' + vl;
+  document.getElementById('vp-verdict').textContent = verdict;
+  document.getElementById('vp-verdict').style.color = vl === 'buy' ? 'var(--green)' : vl === 'avoid' ? 'var(--red)' : 'var(--amber)';
+  document.getElementById('vp-conf').textContent = 'Committee confidence: ' + confidence + '%';
+  document.getElementById('vm-bull').textContent = '3';
+  document.getElementById('vm-bear').textContent = '4';
+  document.getElementById('vm-flags').textContent = '1';
+  document.getElementById('vm-conf').textContent = confidence + '%';
+  document.getElementById('portalStatus').textContent = 'REVIEW REQUIRED';
+  document.getElementById('portalStatus').style.color = 'var(--amber)';
+  document.getElementById('btnApprove').disabled = false;
+  document.getElementById('btnOverride').disabled = false;
+  document.getElementById('btnRequest').disabled = false;
+  document.getElementById('mo-text').textContent = 'MOTION: ' + verdict + ' — ' + currentTicker;
+  document.getElementById('mo-conf').textContent = 'Final committee confidence: ' + confidence + '%';
+  document.getElementById('awaitingCount').textContent = parseInt(document.getElementById('awaitingCount').textContent) + 1;
+}
+
+let analysisRunning = false;
+async function startAnalysis() {
+  const ticker = document.getElementById('tickerIn').value.trim().toUpperCase();
+  const thesis = document.getElementById('thesisIn').value.trim();
+  if (!ticker) { showStatus('err', 'Enter a ticker symbol.'); return; }
+  if (!thesis) { showStatus('err', 'Enter an investment thesis.'); return; }
+  if (analysisRunning) return;
+  analysisRunning = true;
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Convening Committee…';
+  showStatus('loading', 'Fetching market data and sending to Band room…');
+
+  // Reset state
+  for (let i = 1; i <= 7; i++) setStage(i, '', null, '—');
+  setVote('bull','—','vb-pend'); setVote('bear','—','vb-pend');
+  setVote('compliance','—','vb-pend'); setVote('synthesis','—','vb-pend');
+  setVote('human','PENDING','vb-pend');
+  document.getElementById('mo-text').textContent = 'DELIBERATION IN PROGRESS';
+  document.getElementById('mo-conf').textContent = 'Agents are debating…';
+  document.getElementById('verdictPanel').className = 'verdict-panel';
+  document.getElementById('vp-verdict').textContent = '—';
+  document.getElementById('vp-verdict').style.color = 'var(--muted)';
+  document.getElementById('vp-conf').textContent = 'Awaiting synthesis';
+  document.getElementById('vm-bull').textContent='—';document.getElementById('vm-bear').textContent='—';
+  document.getElementById('vm-flags').textContent='—';document.getElementById('vm-conf').textContent='—';
+  document.getElementById('btnApprove').disabled=true;document.getElementById('btnOverride').disabled=true;document.getElementById('btnRequest').disabled=true;
+  document.getElementById('riskScore').textContent='—/100';
+  ['r-val','r-reg','r-liq','r-mkt','r-exc'].forEach(id=>{document.getElementById(id).style.width='0';});
+  ['rn-val','rn-reg','rn-liq','rn-mkt','rn-exc'].forEach(id=>{document.getElementById(id).textContent='—';});
+  document.getElementById('portalStatus').textContent='INACTIVE';
+  document.getElementById('portalStatus').style.color='';
+  document.getElementById('wf-ticker').textContent = ticker;
+
+  try {
+    const res = await fetch('/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker, thesis }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Server error');
+
+    // Update Band room link
+    if (data.band_room_url) {
+      document.getElementById('bandRoomLink').href = data.band_room_url;
+    }
+
+    showStatus('ok', `Committee convened for ${ticker}. Watch the Band room for live deliberation.`);
+    addAudit('System', `Committee #2847 convened for ${ticker} — ${new Date().toLocaleTimeString()}`);
+
+    // Simulate workflow progression
+    runWorkflowAnimation(ticker);
+
+  } catch (err) {
+    showStatus('err', 'Failed: ' + err.message);
+    analysisRunning = false;
+    btn.disabled = false;
+    btn.textContent = 'Convene the Committee';
+  }
+}
+
+function runWorkflowAnimation(ticker) {
+  const t = now;
+  // Stage 1: Research (active immediately)
+  setStage(1, 'active', 'ResearchAgent — processing market data…', '');
+  setDot('research', 'act');
+  addAudit('ResearchAgent', 'Processing market data for ' + ticker);
+
+  setTimeout(() => {
+    setStage(1, 'done', 'Research Report published to room', t());
+    setDot('research', 'on');
+    addAudit('ResearchAgent', 'Research Report posted · @BullAnalyst @BearAnalyst notified');
+    setStage(2, 'active', 'BullAnalyst — building investment case…', '');
+    setDot('bull', 'act');
+    addAudit('BullAnalyst', 'Constructing bull thesis for ' + ticker);
+  }, 8000);
+
+  setTimeout(() => {
+    setStage(2, 'done', 'MOTION: BUY filed with confidence score', t());
+    setDot('bull', 'on');
+    setVote('bull', 'BUY 78%', 'vb-buy');
+    addAudit('BullAnalyst', '🟢 MOTION: BUY filed · Confidence 78%');
+    setStage(3, 'active', 'BearAnalyst — adversarial challenge…', '');
+    setDot('bear', 'act');
+    addAudit('BearAnalyst', 'Challenging Bull thesis point by point');
+  }, 22000);
+
+  setTimeout(() => {
+    setStage(3, 'done', 'MOTION: AVOID filed · rebuttal round triggered', t());
+    setDot('bear', 'on');
+    setVote('bear', 'AVOID 71%', 'vb-avoid');
+    addAudit('BearAnalyst', '🔴 MOTION: AVOID filed · Confidence 71% · @BullAnalyst rebuttal requested');
+    setStage(4, 'active', 'BullAnalyst — one-round rebuttal…', '');
+    setDot('bull', 'act');
+  }, 38000);
+
+  setTimeout(() => {
+    setStage(4, 'done', 'Rebuttal submitted · debate closed', t());
+    setDot('bull', 'on');
+    addAudit('BullAnalyst', 'Rebuttal submitted · debate record closed');
+    setStage(5, 'active', 'ComplianceOfficer — regulatory screening…', '');
+    setDot('compliance', 'act');
+    addAudit('ComplianceOfficer', 'Scanning for SEC flags, sector risk, insider activity');
+  }, 50000);
+
+  setTimeout(() => {
+    setStage(5, 'done', '✅ COMPLIANCE CLEARED — Low regulatory risk', t());
+    setDot('compliance', 'on');
+    setVote('compliance', 'CLEARED', 'vb-clear');
+    addAudit('ComplianceOfficer', '✅ COMPLIANCE CLEARED · Risk Level: Low · @SynthesisChair notified');
+    setStage(6, 'active', 'SynthesisChair — tallying motions & synthesizing…', '');
+    setDot('synthesis', 'act');
+    addAudit('SynthesisChair', 'Reading full deliberation · tallying motions');
+    animateRisk([68, 25, 15, 55, 30]);
+  }, 62000);
+
+  setTimeout(() => {
+    setStage(6, 'done', 'Final verdict delivered · awaiting human', t());
+    setDot('synthesis', 'on');
+    setVote('synthesis', 'BUY 73%', 'vb-buy');
+    addAudit('SynthesisChair', '⚖️ FINAL VERDICT: BUY · Confidence 73% · Position: Moderate (3–5%)');
+    setStage(7, 'active', 'Awaiting human chairperson approval…', '');
+    addAudit('System', '⏳ AWAITING HUMAN APPROVAL — type APPROVED or use portal below');
+    activatePortal('BUY', 73);
+
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = false;
+    btn.textContent = 'Convene the Committee';
+    analysisRunning = false;
+  }, 75000);
+}
+
+function humanApprove() {
+  setVote('human', 'APPROVED', 'vb-buy');
+  setStage(7, 'done', 'Human chairperson approved', now());
+  document.getElementById('portalStatus').textContent = 'APPROVED';
+  document.getElementById('portalStatus').style.color = 'var(--green)';
+  document.getElementById('btnApprove').disabled = true;
+  document.getElementById('btnOverride').disabled = true;
+  document.getElementById('btnRequest').disabled = true;
+  addAudit('Human', '✅ APPROVED — Decision logged. Audit trail complete. Committee #2847 closed.');
+  document.getElementById('mo-text').textContent = 'APPROVED: BUY — ' + currentTicker;
+  document.getElementById('mo-conf').textContent = 'Human chairperson confirmed · Audit trail sealed';
+}
+
+function humanOverride() {
+  const verdict = prompt('Enter override decision (BUY / HOLD / AVOID):');
+  if (!verdict) return;
+  const v = verdict.toUpperCase().trim();
+  if (!['BUY','HOLD','AVOID'].includes(v)) { alert('Must be BUY, HOLD, or AVOID'); return; }
+  setVote('human', 'OVERRIDE: ' + v, v === 'BUY' ? 'vb-buy' : v === 'AVOID' ? 'vb-avoid' : 'vb-pend');
+  setStage(7, v === 'HOLD' ? 'warn' : 'done', 'Human override: ' + v, now());
+  addAudit('Human', '⚠️ OVERRIDE DECISION: ' + v + ' — Human chairperson exercised authority');
+  document.getElementById('portalStatus').textContent = 'OVERRIDDEN';
+  document.getElementById('btnApprove').disabled = true;
+  document.getElementById('btnOverride').disabled = true;
+  document.getElementById('btnRequest').disabled = true;
+}
+
+function requestAnalysis() {
+  addAudit('Human', '❓ Additional analysis requested — committee re-engaged');
+  showStatus('ok', 'Request sent. Agents will respond in the Band room.');
+}
+
+function showStatus(type, msg) {
+  const el = document.getElementById('statusMsg');
+  el.className = type;
+  el.textContent = msg;
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  initPriceChart('NVDA');
+  initPortChart();
+  document.getElementById('agentCount').textContent = '5/5 online';
+  document.getElementById('tickerIn').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('thesisIn').focus();
+  });
+});
+</script>
+</body>
+</html>
