@@ -153,6 +153,8 @@ async def room_status():
         sender_key, _, _ = _load_trigger_config()
         messages = get_room_messages(room_id, sender_key)
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=502, detail=f"Failed to fetch room messages: {e}")
     return {"messages": messages}
 

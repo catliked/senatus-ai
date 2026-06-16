@@ -76,5 +76,5 @@ def get_room_messages(room_id: str, agent_api_key: str) -> list[dict]:
             "content": m.content,
             "time": m.inserted_at.isoformat() if m.inserted_at else None,
         }
-        for m in result
+        for m in result.data
     ]

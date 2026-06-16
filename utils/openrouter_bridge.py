@@ -14,8 +14,13 @@ Usage:
     # To change model: set OPENROUTER_MODEL in .env
 """
 
+import asyncio
+import logging
+
 from openai import AsyncOpenAI
 from anthropic.types import Message, TextBlock, Usage
+
+logger = logging.getLogger(__name__)
 
 
 class _MessagesNamespace:
@@ -62,12 +67,36 @@ class OpenRouterBridge:
 
     async def _create(self, max_tokens: int, system: str, messages: list) -> Message:
         openai_messages = self._to_openai_messages(system, messages)
-        response = await self._openai.chat.completions.create(
-            model=self._model,
-            max_tokens=max_tokens,
-            messages=openai_messages,
-        )
-        text = response.choices[0].message.content or ""
+        text = ""
+        last_error = None
+
+        # Free OpenRouter models intermittently return a response with no choices
+        # (upstream provider hiccup, rate limiting, etc). Retry a few times before
+        # giving up — this is a known characteristic of the free tier, not a bug.
+        for attempt in range(3):
+            response = await self._openai.chat.completions.create(
+                model=self._model,
+                max_tokens=max_tokens,
+                messages=openai_messages,
+            )
+            if response.choices:
+                text = response.choices[0].message.content or ""
+                if text.strip():
+                    break
+            logger.warning(
+                "OpenRouter returned no usable content (attempt %d/3): %s",
+                attempt + 1,
+                response.model_dump_json() if hasattr(response, "model_dump_json") else response,
+            )
+            last_error = response
+            await asyncio.sleep(1.5 * (attempt + 1))
+
+        if not text.strip():
+            raise RuntimeError(
+                f"OpenRouter model '{self._model}' returned no usable content after 3 attempts. "
+                f"Last raw response: {last_error}"
+            )
+
         return Message(
             id=response.id,
             type="message",
