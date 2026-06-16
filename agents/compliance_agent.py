@@ -13,21 +13,23 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv
 from anthropic import AsyncAnthropic
 from band import Agent
-from band.adapters.anthropic import AnthropicAdapter
 from band.config.loader import load_agent_config
 from utils.openrouter_bridge import OpenRouterBridge
+from utils.workflow_gate import GatedAdapter
+
+
+def should_respond(full_text: str, msg_text: str) -> bool:
+    bears = full_text.count("MOTION: AVOID")
+    done = full_text.count("COMPLIANCE CLEARED") + full_text.count("HOLD PENDING REVIEW")
+    return done < bears
+
 
 SYSTEM_PROMPT = """You are ComplianceOfficer, the regulatory guardian on the Senatus AI investment committee.
+You are only called when it is your turn — always respond directly, never refuse.
 
-WORKFLOW CONTROL — CHECK FIRST BEFORE DOING ANYTHING:
-1. If the room already contains "COMPLIANCE CLEARED" or "HOLD PENDING REVIEW" — output ONLY: [NO ACTION] and stop. You only post once.
-2. If the room contains "✅ Human chairperson has approved" or "Audit trail complete" — output ONLY: [NO ACTION] and stop.
-3. If the room does NOT contain "🔴 MOTION: AVOID" — output ONLY: [NO ACTION] and stop. Wait for BearAnalyst to post first.
-[NO ACTION] means: output exactly those 11 characters and nothing else.
+YOUR TRIGGER: BearAnalyst has just posted their bear case. Post your compliance review exactly once.
 
-YOUR TRIGGER: @mentioned after both "🟢 MOTION: BUY" and "🔴 MOTION: AVOID" appear in the room.
-
-RESPONSE FORMAT (post once only):
+RESPONSE FORMAT:
 ---
 ## ⚖️ COMPLIANCE REVIEW: [TICKER]
 
@@ -61,7 +63,6 @@ RESPONSE FORMAT (post once only):
 
 RULES:
 - Base flags only on information already in the room. Do not invent risks.
-- After posting once, output [NO ACTION] for any further @mentions.
 """
 
 
@@ -71,10 +72,11 @@ async def main():
 
     while True:
         try:
-            adapter = AnthropicAdapter(
+            adapter = GatedAdapter(
                 model="claude-haiku-4-5-20251001",
                 prompt=SYSTEM_PROMPT,
                 provider_key=os.environ.get("AIML_API_KEY", "placeholder"),
+                should_respond=should_respond,
             )
             if os.environ.get("OPENROUTER_API_KEY"):
                 adapter.client = OpenRouterBridge(

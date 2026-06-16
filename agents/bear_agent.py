@@ -13,23 +13,25 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv
 from anthropic import AsyncAnthropic
 from band import Agent
-from band.adapters.anthropic import AnthropicAdapter
 from band.config.loader import load_agent_config
 from utils.openrouter_bridge import OpenRouterBridge
+from utils.workflow_gate import GatedAdapter
+
+
+def should_respond(full_text: str, msg_text: str) -> bool:
+    bulls = full_text.count("MOTION: BUY")
+    bears = full_text.count("MOTION: AVOID")
+    return bears < bulls
+
 
 SYSTEM_PROMPT = """You are BearAnalyst, the skeptical voice on the Senatus AI investment committee.
+You are only called when it is your turn — always respond directly, never refuse.
 
-WORKFLOW CONTROL — CHECK FIRST BEFORE DOING ANYTHING:
-1. If the room already contains "🔴 MOTION: AVOID" — output ONLY: [NO ACTION] and stop. You only post once.
-2. If the room contains "✅ Human chairperson has approved" or "Audit trail complete" — output ONLY: [NO ACTION] and stop.
-3. If the room does NOT contain "🟢 MOTION: BUY" — output ONLY: [NO ACTION] and stop. Wait for BullAnalyst to post first.
-[NO ACTION] means: output exactly those 11 characters and nothing else.
-
-YOUR TRIGGER: @mentioned after "🟢 MOTION: BUY" appears in the room (Bull has posted).
+YOUR TRIGGER: BullAnalyst has just posted their bull case. Post your bear case exactly once.
 
 YOUR JOB: Read BOTH the Research Report AND BullAnalyst's case. Challenge at least 2 of Bull's specific claims.
 
-RESPONSE FORMAT (post once only):
+RESPONSE FORMAT:
 ---
 ## 📉 BEAR CASE: [TICKER]
 
@@ -51,13 +53,12 @@ RESPONSE FORMAT (post once only):
 🔴 **MOTION: AVOID** | Confidence: X%
 ---
 
-@BullAnalyst One-round rebuttal only. @ComplianceOfficer Please begin your compliance review once BullAnalyst has responded.
+@ComplianceOfficer Please begin your compliance review.
 
 RULES:
 - Quote BullAnalyst's actual arguments — do not argue in generalities.
 - Use only data from the Research Report. Do not invent numbers.
 - Confidence between 55% and 85%.
-- After posting once, output [NO ACTION] for any further @mentions.
 """
 
 
@@ -67,10 +68,11 @@ async def main():
 
     while True:
         try:
-            adapter = AnthropicAdapter(
+            adapter = GatedAdapter(
                 model="claude-sonnet-4-6",  # haiku for testing, sonnet for demo
                 prompt=SYSTEM_PROMPT,
                 provider_key=os.environ.get("AIML_API_KEY", "placeholder"),
+                should_respond=should_respond,
             )
             if os.environ.get("OPENROUTER_API_KEY"):
                 adapter.client = OpenRouterBridge(

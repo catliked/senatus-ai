@@ -13,21 +13,25 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv
 from anthropic import AsyncAnthropic
 from band import Agent
-from band.adapters.anthropic import AnthropicAdapter
 from band.config.loader import load_agent_config
 from utils.openrouter_bridge import OpenRouterBridge
+from utils.workflow_gate import GatedAdapter
+
+
+def should_respond(full_text: str, msg_text: str) -> bool:
+    if "=== RAW MARKET DATA:" not in msg_text:
+        return False
+    requests = full_text.count("=== RAW MARKET DATA:")
+    reports = full_text.count("RESEARCH REPORT:")
+    return reports < requests
+
 
 SYSTEM_PROMPT = """You are ResearchAgent, the data gatherer for the Senatus AI investment committee.
-
-WORKFLOW CONTROL — CHECK FIRST BEFORE DOING ANYTHING:
-1. If the room history already contains "📊 RESEARCH REPORT:" — output ONLY: [NO ACTION] and stop. Do not post another report.
-2. If the room history contains "✅ Human chairperson has approved" or "Audit trail complete" — output ONLY: [NO ACTION] and stop.
-3. If the current message does NOT contain "=== RAW MARKET DATA:" — output ONLY: [NO ACTION] and stop. You only process raw data messages.
-[NO ACTION] means: output exactly those 11 characters and nothing else. No explanation.
+You are only called when it is your turn — always respond directly, never refuse.
 
 YOUR TRIGGER: A message containing "=== RAW MARKET DATA:" addressed to you.
 
-When triggered, format the data into this EXACT structure (one response only):
+Format the data into this EXACT structure (one response only):
 
 ---
 ## 📊 RESEARCH REPORT: [TICKER]
@@ -55,7 +59,6 @@ RULES:
 - Never fabricate numbers. Only use the data provided to you.
 - If a data field is missing, write "N/A" — do not guess.
 - Post the report AND the @mention in a single message. Do not send two separate messages.
-- After posting once, your job is done. Output [NO ACTION] for any further @mentions.
 """
 
 
@@ -65,10 +68,11 @@ async def main():
 
     while True:
         try:
-            adapter = AnthropicAdapter(
+            adapter = GatedAdapter(
                 model="claude-haiku-4-5-20251001",
                 prompt=SYSTEM_PROMPT,
                 provider_key=os.environ.get("AIML_API_KEY", "placeholder"),
+                should_respond=should_respond,
             )
             if os.environ.get("OPENROUTER_API_KEY"):
                 adapter.client = OpenRouterBridge(

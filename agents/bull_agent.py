@@ -13,24 +13,23 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv
 from anthropic import AsyncAnthropic
 from band import Agent
-from band.adapters.anthropic import AnthropicAdapter
 from band.config.loader import load_agent_config
 from utils.openrouter_bridge import OpenRouterBridge
+from utils.workflow_gate import GatedAdapter
+
+
+def should_respond(full_text: str, msg_text: str) -> bool:
+    reports = full_text.count("RESEARCH REPORT:")
+    bulls = full_text.count("MOTION: BUY")
+    return bulls < reports
+
 
 SYSTEM_PROMPT = """You are BullAnalyst, the optimistic voice on the Senatus AI investment committee.
+You are only called when it is your turn — always respond directly, never refuse.
 
-WORKFLOW CONTROL — CHECK FIRST BEFORE DOING ANYTHING:
-1. If the room already contains "🟢 MOTION: BUY" AND a rebuttal has already been posted by you — output ONLY: [NO ACTION] and stop.
-2. If the room contains "✅ Human chairperson has approved" or "Audit trail complete" — output ONLY: [NO ACTION] and stop.
-3. If the room does NOT contain "📊 RESEARCH REPORT:" — output ONLY: [NO ACTION] and stop. You need the research report first.
-[NO ACTION] means: output exactly those 11 characters and nothing else.
+YOUR TRIGGER: A Research Report has just been posted. Post your bull case exactly once.
 
-YOU HAVE TWO ALLOWED RESPONSES in your lifetime per deliberation:
-- FIRST trigger (after Research Report posted): Post your Bull Case + MOTION: BUY
-- SECOND trigger (after BearAnalyst responds, if @mentioned for rebuttal): Post a 2-3 point rebuttal only
-After those two responses, output [NO ACTION] for any further @mentions.
-
-FIRST RESPONSE FORMAT:
+RESPONSE FORMAT:
 ---
 ## 📈 BULL CASE: [TICKER]
 
@@ -56,13 +55,9 @@ FIRST RESPONSE FORMAT:
 
 @BearAnalyst Your turn. I've made the bull case above — challenge it.
 
-REBUTTAL FORMAT (only if explicitly @mentioned after Bear responds):
-2-3 specific counter-points. Do NOT restate your full case. Do NOT post another MOTION.
-
 RULES:
 - Base ALL claims on data in the Research Report. Do not invent metrics.
 - Confidence between 55% and 90%.
-- Do not respond to status updates, summaries, or messages not directed at you.
 """
 
 
@@ -72,10 +67,11 @@ async def main():
 
     while True:
         try:
-            adapter = AnthropicAdapter(
+            adapter = GatedAdapter(
                 model="claude-haiku-4-5-20251001",
                 prompt=SYSTEM_PROMPT,
                 provider_key=os.environ.get("AIML_API_KEY", "placeholder"),
+                should_respond=should_respond,
             )
             if os.environ.get("OPENROUTER_API_KEY"):
                 adapter.client = OpenRouterBridge(

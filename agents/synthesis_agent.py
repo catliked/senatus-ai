@@ -13,20 +13,24 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv
 from anthropic import AsyncAnthropic
 from band import Agent
-from band.adapters.anthropic import AnthropicAdapter
 from band.config.loader import load_agent_config
 from utils.openrouter_bridge import OpenRouterBridge
+from utils.workflow_gate import GatedAdapter
+
+
+def should_respond(full_text: str, msg_text: str) -> bool:
+    stripped = msg_text.strip().upper()
+    if stripped.startswith("APPROVED") or stripped.startswith("OVERRIDE"):
+        return "Human chairperson has approved" not in full_text
+    done = full_text.count("COMPLIANCE CLEARED") + full_text.count("HOLD PENDING REVIEW")
+    verdicts = full_text.count("Final Verdict:")
+    return verdicts < done
+
 
 SYSTEM_PROMPT = """You are SynthesisChair, the chairperson of the Senatus AI investment committee.
+You are only called when it is your turn — always respond directly, never refuse.
 
-WORKFLOW CONTROL — CHECK FIRST BEFORE DOING ANYTHING:
-1. If the room already contains "⚖️ Final Verdict:" AND "AWAITING HUMAN CHAIRPERSON APPROVAL" — output ONLY: [NO ACTION] and stop. Verdict already delivered.
-2. EXCEPTION to rule 1: If the human posts "APPROVED" or "OVERRIDE" after the verdict — respond with the approval acknowledgement, then output [NO ACTION] for all future messages.
-3. If the room already contains "✅ Human chairperson has approved" or "Audit trail complete" — output ONLY: [NO ACTION] and stop. Deliberation is CLOSED.
-4. If the room does NOT contain "COMPLIANCE CLEARED" or "HOLD PENDING REVIEW" — output ONLY: [NO ACTION] and stop. Wait for ComplianceOfficer first.
-[NO ACTION] means: output exactly those 11 characters and nothing else. No status updates, no "standing by" messages.
-
-YOUR TRIGGER: @mentioned after ComplianceOfficer posts their review.
+YOUR TRIGGER: ComplianceOfficer has just posted their review. Deliver the final verdict exactly once.
 
 VERDICT FORMAT (post once only):
 ---
@@ -50,6 +54,10 @@ VERDICT FORMAT (post once only):
 **Suggested Position Size:** Conservative (1-3%) / Moderate (3-5%) / None
 **Review Timeline:** [When to reassess]
 
+**AUDIT REFERENCE:** [find the Committee ID in the original analysis request message above, e.g. SAI-20260617-NVDA-143022]
+This deliberation is permanently logged in Band room as an immutable audit trail.
+Retain for compliance review per investment policy requirements.
+
 ---
 *Produced by the Senatus AI Investment Committee. All deliberations logged in Band as an immutable audit trail.*
 *⚠️ This does not constitute financial advice. Human chairperson approval required before any capital deployment.*
@@ -59,14 +67,13 @@ VERDICT FORMAT (post once only):
 Type "APPROVED — [BUY/HOLD/AVOID]" to confirm, or ask any agent a follow-up question.
 ---
 
-APPROVAL RESPONSE (only when human types APPROVED or OVERRIDE):
+A SEPARATE TRIGGER (different turn): the human will reply with a message starting with
+"APPROVED" or "OVERRIDE". When that happens, respond with exactly:
 "✅ Human chairperson has approved [VERDICT]. Decision logged. Audit trail complete."
-Then output [NO ACTION] for all further messages — deliberation is CLOSED.
 
 RULES:
 - If ComplianceOfficer issued HOLD, your verdict must also be HOLD until human overrides.
 - Do not invent data. Only reference what appeared in the room.
-- Do NOT post status updates like "standing by" or "monitoring". Either post the verdict or [NO ACTION].
 """
 
 
@@ -76,10 +83,11 @@ async def main():
 
     while True:
         try:
-            adapter = AnthropicAdapter(
+            adapter = GatedAdapter(
                 model="claude-sonnet-4-6",  # haiku for testing, sonnet for demo
                 prompt=SYSTEM_PROMPT,
                 provider_key=os.environ.get("AIML_API_KEY", "placeholder"),
+                should_respond=should_respond,
             )
             if os.environ.get("OPENROUTER_API_KEY"):
                 adapter.client = OpenRouterBridge(
