@@ -72,6 +72,10 @@ class ApprovalRequest(BaseModel):
     verdict: str   # BUY / HOLD / AVOID
 
 
+class AskRequest(BaseModel):
+    question: str
+
+
 @app.get("/")
 async def root():
     return FileResponse("frontend/index.html")
@@ -178,4 +182,25 @@ async def approve(req: ApprovalRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Failed to post approval: {e}")
+    return {"status": "sent"}
+
+
+@app.post("/ask")
+async def ask(req: AskRequest):
+    """Posts a human question into the Band room, visible to all agents."""
+    room_id = os.getenv("BAND_ROOM_ID", "")
+    human_key = os.getenv("BAND_API_KEY", "")
+    if not room_id or not human_key:
+        raise HTTPException(status_code=503, detail="BAND_ROOM_ID or BAND_API_KEY not configured")
+    try:
+        synthesis_id = _load_synthesis_agent_id()
+        text = f"@SynthesisChair QUESTION — {req.question}"
+        send_human_message(
+            room_id=room_id,
+            text=text,
+            human_api_key=human_key,
+            mention_agent_id=synthesis_id,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to post question: {e}")
     return {"status": "sent"}

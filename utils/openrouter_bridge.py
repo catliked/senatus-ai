@@ -16,6 +16,7 @@ Usage:
 
 import asyncio
 import logging
+import re
 
 from openai import AsyncOpenAI
 from anthropic.types import Message, TextBlock, Usage
@@ -96,6 +97,12 @@ class OpenRouterBridge:
                 f"OpenRouter model '{self._model}' returned no usable content after 3 attempts. "
                 f"Last raw response: {last_error}"
             )
+
+        # Reasoning models wrap their chain-of-thought in <think>...</think>.
+        # Strip it so only the final answer reaches the Band room.
+        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+        if not text:
+            raise RuntimeError(f"OpenRouter model '{self._model}' returned only reasoning, no answer.")
 
         return Message(
             id=response.id,

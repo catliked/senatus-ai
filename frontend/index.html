@@ -187,6 +187,25 @@
     .btn-override{padding:9px;background:transparent;color:var(--amber);border:1px solid rgba(245,158,11,.5);border-radius:4px;font-size:10px;font-weight:800;cursor:pointer;letter-spacing:.06em;text-transform:uppercase;}
     .btn-request{padding:9px;background:transparent;color:var(--dim);border:1px solid var(--border2);border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;}
     .btn-approve:disabled,.btn-override:disabled,.btn-request:disabled{opacity:.3;cursor:not-allowed;}
+
+    /* ── COMMITTEE REPORT SUMMARY ── */
+    .report-box{padding:12px 18px 14px;border-bottom:1px solid var(--border);}
+    .rpt-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;}
+    .rpt-ticker{font-size:15px;font-weight:800;letter-spacing:.02em;}
+    .rpt-id{font-size:9px;color:var(--muted);font-family:monospace;margin-top:2px;}
+    .rpt-pill{padding:3px 12px;border-radius:20px;font-size:12px;font-weight:800;letter-spacing:.06em;}
+    .rpt-pill.buy{background:var(--green-bg);color:var(--green);border:1px solid rgba(16,185,129,.3);}
+    .rpt-pill.hold{background:var(--amber-bg);color:var(--amber);border:1px solid rgba(245,158,11,.3);}
+    .rpt-pill.avoid{background:var(--red-bg);color:var(--red);border:1px solid rgba(239,68,68,.3);}
+    .rpt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:8px;}
+    .rpt-m{background:var(--card2);border:1px solid var(--border2);border-radius:3px;padding:5px 7px;}
+    .rpt-ml{font-size:8px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700;}
+    .rpt-mv{font-size:11px;font-weight:700;margin-top:2px;}
+    .rpt-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:10px;}
+    .rpt-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;}
+    .rpt-factor{font-size:9px;color:var(--dim);font-style:italic;margin:6px 0;line-height:1.5;padding:5px 8px;background:var(--card2);border-left:2px solid var(--border2);border-radius:2px;}
+    .btn-export{width:100%;margin-top:8px;padding:6px;background:transparent;color:var(--dim);border:1px solid var(--border2);border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;letter-spacing:.03em;transition:all .15s;}
+    .btn-export:hover{background:var(--card2);color:var(--text);}
   </style>
 </head>
 <body>
@@ -339,7 +358,7 @@
         </div>
         <div class="stage" id="st-4">
           <div class="s-icon">4</div>
-          <div class="s-info"><div class="s-name">Rebuttal Round</div><div class="s-detail" id="sd-4">BullAnalyst — one-round rebuttal</div></div>
+          <div class="s-info"><div class="s-name">Debate Record Closed</div><div class="s-detail" id="sd-4">Bull vs Bear exchange complete</div></div>
           <div class="s-time" id="st-t4">—</div>
         </div>
         <div class="stage" id="st-5">
@@ -358,6 +377,29 @@
           <div class="s-time" id="st-t7">—</div>
         </div>
       </div>
+    </div>
+
+    <!-- Committee Report Summary (shown after synthesis) -->
+    <div class="sh" id="reportSh" style="display:none"><span class="sh-title">Committee Report</span><span class="sh-badge" id="reportBadge">—</span></div>
+    <div class="report-box" id="reportBox" style="display:none">
+      <div class="rpt-hdr">
+        <div><div class="rpt-ticker" id="rpt-ticker">—</div><div class="rpt-id" id="rpt-id">—</div></div>
+        <div class="rpt-pill" id="rpt-pill">—</div>
+      </div>
+      <div class="rpt-grid">
+        <div class="rpt-m"><div class="rpt-ml">P/E (TTM)</div><div class="rpt-mv" id="rpt-pe">—</div></div>
+        <div class="rpt-m"><div class="rpt-ml">Mkt Cap</div><div class="rpt-mv" id="rpt-cap">—</div></div>
+        <div class="rpt-m"><div class="rpt-ml">Rev Growth</div><div class="rpt-mv" id="rpt-rev">—</div></div>
+        <div class="rpt-m"><div class="rpt-ml">Analyst Target</div><div class="rpt-mv" id="rpt-tgt">—</div></div>
+        <div class="rpt-m"><div class="rpt-ml">Consensus</div><div class="rpt-mv" id="rpt-cons">—</div></div>
+        <div class="rpt-m"><div class="rpt-ml">52W Range</div><div class="rpt-mv" id="rpt-range">—</div></div>
+      </div>
+      <div class="rpt-row"><span class="rpt-lbl">Compliance</span><span id="rpt-compliance">—</span></div>
+      <div class="rpt-row"><span class="rpt-lbl">Confidence</span><span id="rpt-confidence">—</span></div>
+      <div class="rpt-row"><span class="rpt-lbl">Risk Score</span><span id="rpt-risk">—</span></div>
+      <div class="rpt-row"><span class="rpt-lbl">Human Decision</span><span id="rpt-human">PENDING</span></div>
+      <div class="rpt-factor" id="rpt-factor" style="display:none"></div>
+      <button class="btn-export" onclick="exportReport()">↓ Export Audit Report (JSON)</button>
     </div>
 
     <!-- Audit Trail -->
@@ -853,6 +895,7 @@ function processRoomMessages(messages, ticker, seen) {
     setStage(7, 'active', 'Awaiting human chairperson approval…', '');
     addAudit('System', '⏳ AWAITING HUMAN APPROVAL — use the portal below');
     activatePortal(verdict, conf === '—' ? 70 : parseInt(conf));
+    populateReport(ticker, verdict, conf);
     finishAnalysis();
   }
 }
@@ -866,6 +909,7 @@ function humanApprove() {
   document.getElementById('btnOverride').disabled = true;
   document.getElementById('btnRequest').disabled = true;
   addAudit('Human', '✅ APPROVED — Decision logged. Audit trail complete. Committee ' + (currentCommitteeId || '') + ' closed.');
+  updateReportHumanDecision('APPROVED', currentVerdict);
   bumpStat('awaiting', -1);
   bumpStat('approved', 1);
   document.getElementById('mo-text').textContent = 'APPROVED: ' + currentVerdict + ' — ' + currentTicker;
@@ -881,6 +925,7 @@ function humanOverride() {
   setVote('human', 'OVERRIDE: ' + v, v === 'BUY' ? 'vb-buy' : v === 'AVOID' ? 'vb-avoid' : 'vb-pend');
   setStage(7, v === 'HOLD' ? 'warn' : 'done', 'Human override: ' + v, now());
   addAudit('Human', '⚠️ OVERRIDE DECISION: ' + v + ' — Human chairperson exercised authority');
+  updateReportHumanDecision('OVERRIDE', v);
   bumpStat('awaiting', -1);
   bumpStat('overrides', 1);
   document.getElementById('portalStatus').textContent = 'OVERRIDDEN';
@@ -902,9 +947,107 @@ async function postDecisionToBand(decision, verdict) {
   }
 }
 
-function requestAnalysis() {
-  addAudit('Human', '❓ Additional analysis requested — committee re-engaged');
-  showStatus('ok', 'Request sent. Agents will respond in the Band room.');
+async function requestAnalysis() {
+  const q = prompt('What additional information or clarification do you need from the committee?');
+  if (!q || !q.trim()) return;
+  addAudit('Human', '❓ Additional analysis requested: "' + q.trim() + '"');
+  try {
+    const res = await fetch('/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q.trim() }),
+    });
+    if (res.ok) {
+      showStatus('ok', 'Question posted to Band room. Open the Band room to see the response.');
+    } else {
+      const d = await res.json();
+      showStatus('err', 'Failed to post question: ' + (d.detail || 'Unknown error'));
+    }
+  } catch (e) {
+    showStatus('err', 'Network error posting question: ' + e.message);
+  }
+}
+
+function populateReport(ticker, verdict, conf) {
+  const sel = document.querySelector('.wl-item.sel');
+  const pe   = sel ? sel.dataset.pe   : '—';
+  const cap  = sel ? sel.dataset.cap  : '—';
+  const rev  = sel ? sel.dataset.rev  : '—';
+  const range= sel ? sel.dataset.range: '—';
+  const co   = sel ? sel.dataset.co   : ticker;
+  const tgt  = TICKER_TARGET[ticker] || '—';
+  const cons = TICKER_CONS[ticker]   || '—';
+  const compliance = document.getElementById('rpt-compliance');
+  const riskEl = document.getElementById('riskScore');
+
+  document.getElementById('rpt-ticker').textContent = ticker + ' — ' + co;
+  document.getElementById('rpt-id').textContent = currentCommitteeId || ('SAI-' + ticker);
+  document.getElementById('reportBadge').textContent = verdict;
+  const pill = document.getElementById('rpt-pill');
+  pill.textContent = verdict;
+  pill.className = 'rpt-pill ' + verdict.toLowerCase();
+  document.getElementById('rpt-pe').textContent    = pe + 'x';
+  document.getElementById('rpt-cap').textContent   = cap;
+  document.getElementById('rpt-rev').textContent   = '+' + rev;
+  document.getElementById('rpt-tgt').textContent   = tgt;
+  document.getElementById('rpt-cons').textContent  = cons;
+  document.getElementById('rpt-range').textContent = range;
+
+  const cleared = document.querySelector('#vote-compliance')?.textContent?.includes('CLEARED');
+  compliance.textContent = cleared ? '✅ CLEARED' : '🔶 HOLD PENDING REVIEW';
+  compliance.style.color = cleared ? 'var(--green)' : 'var(--amber)';
+  document.getElementById('rpt-confidence').textContent = (conf === '—' ? '70' : conf) + '%';
+  document.getElementById('rpt-risk').textContent = riskEl ? riskEl.textContent : '—';
+
+  document.getElementById('reportSh').style.display = '';
+  document.getElementById('reportBox').style.display = '';
+}
+
+function updateReportHumanDecision(decision, verdict) {
+  const el = document.getElementById('rpt-human');
+  if (!el) return;
+  el.textContent = decision + ': ' + verdict;
+  el.style.color = decision === 'APPROVED' ? 'var(--green)' : 'var(--amber)';
+}
+
+function exportReport() {
+  const sel = document.querySelector('.wl-item.sel');
+  const report = {
+    committee_id: currentCommitteeId || ('SAI-' + currentTicker),
+    ticker: currentTicker,
+    company: sel ? sel.dataset.co : currentTicker,
+    generated_at: new Date().toISOString(),
+    market_data: {
+      price: sel ? sel.dataset.price : '—',
+      pe_ttm: sel ? sel.dataset.pe + 'x' : '—',
+      market_cap: sel ? sel.dataset.cap : '—',
+      revenue_growth: sel ? '+' + sel.dataset.rev : '—',
+      analyst_target: TICKER_TARGET[currentTicker] || '—',
+      consensus: TICKER_CONS[currentTicker] || '—',
+    },
+    committee_votes: {
+      bull:        document.getElementById('vote-bull')?.textContent,
+      bear:        document.getElementById('vote-bear')?.textContent,
+      compliance:  document.getElementById('vote-compliance')?.textContent,
+      synthesis:   document.getElementById('vote-synthesis')?.textContent,
+      human:       document.getElementById('vote-human')?.textContent,
+    },
+    verdict: document.getElementById('vp-verdict')?.textContent,
+    confidence: document.getElementById('rpt-confidence')?.textContent,
+    risk_score: document.getElementById('riskScore')?.textContent,
+    audit_trail: Array.from(document.querySelectorAll('.audit-item')).map(el => ({
+      time: el.querySelector('.a-time')?.textContent,
+      entry: el.querySelector('.a-body')?.textContent,
+    })),
+  };
+  const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = (currentCommitteeId || 'senatus-report') + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  addAudit('System', '📄 Audit report exported: ' + a.download);
 }
 
 function showStatus(type, msg) {
