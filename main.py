@@ -2,6 +2,8 @@
 Senatus AI — FastAPI Backend
 Receives ticker + thesis from the frontend, fetches market data,
 and fires the first message into the Band room to trigger the agent debate.
+Demo mode: when AIML_API_KEY is empty or DEMO_MODE=true, returns demo_mode flag
+so the frontend runs a local simulation instead of polling the Band room.
 """
 import os
 import yaml
@@ -23,12 +25,14 @@ app = FastAPI(title="Senatus AI")
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
 
 
+def _is_demo_mode() -> bool:
+    """Demo mode when AIML_API_KEY is missing/empty or DEMO_MODE=true."""
+    if os.getenv("DEMO_MODE", "false").lower() == "true":
+        return True
+    return not bool(os.getenv("AIML_API_KEY", "").strip())
+
+
 def _load_trigger_config() -> tuple[str, str, str]:
-    """
-    Returns (sender_api_key, research_agent_id, research_agent_handle).
-    Sender is SynthesisChair — avoids ResearchAgent self-triggering.
-    Falls back to env vars for cloud deployment (no agent_config.yaml).
-    """
     env_sender = os.getenv("SYNTHESIS_AGENT_API_KEY", "")
     env_mention_id = os.getenv("RESEARCH_AGENT_ID", "")
     if env_sender and env_mention_id:
@@ -44,7 +48,6 @@ def _load_trigger_config() -> tuple[str, str, str]:
 
 
 def _load_synthesis_agent_id() -> str:
-    """UUID of SynthesisChair, used to @mention it when the human posts an approval."""
     env_id = os.getenv("SYNTHESIS_AGENT_ID", "")
     if env_id:
         return env_id
@@ -65,6 +68,7 @@ class AnalysisResponse(BaseModel):
     band_room_url: str
     message: str
     committee_id: str
+    demo_mode: bool = False
 
 
 class ApprovalRequest(BaseModel):
@@ -83,7 +87,13 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "Senatus AI"}
+    demo = _is_demo_mode()
+    return {
+        "status": "ok",
+        "service": "Senatus AI",
+        "demo_mode": demo,
+        "ai_configured": not demo,
+    }
 
 
 @app.post("/analyze", response_model=AnalysisResponse)
@@ -96,20 +106,30 @@ async def analyze(req: AnalysisRequest):
     if not thesis:
         raise HTTPException(status_code=400, detail="Investment thesis is required")
 
+    committee_id = f"SAI-{datetime.now().strftime('%Y%m%d')}-{ticker}-{datetime.now().strftime('%H%M%S')}"
+    demo = _is_demo_mode()
+
+    if demo:
+        return AnalysisResponse(
+            status="demo",
+            ticker=ticker,
+            room_id="demo",
+            band_room_url="#",
+            message=f"Demo mode active. Configure AIML_API_KEY in .env for live AI deliberation.",
+            committee_id=committee_id,
+            demo_mode=True,
+        )
+
     room_id = os.getenv("BAND_ROOM_ID", "")
     if not room_id or "PASTE" in room_id:
         raise HTTPException(
             status_code=503,
-            detail="BAND_ROOM_ID not configured in .env. Create a Band room and add the ID.",
+            detail="BAND_ROOM_ID not configured in .env.",
         )
 
-    # Fetch live market data (falls back to mock on failure)
     stock_data = get_stock_data(ticker)
     data_summary = format_stock_summary(stock_data)
 
-    committee_id = f"SAI-{datetime.now().strftime('%Y%m%d')}-{ticker}-{datetime.now().strftime('%H%M%S')}"
-
-    # Compose the trigger message for ResearchAgent
     trigger_message = (
         f"New analysis request from the investment committee.\n\n"
         f"**Committee ID:** {committee_id}\n"
@@ -119,7 +139,6 @@ async def analyze(req: AnalysisRequest):
         f"Please format this into the official Research Report and begin the committee deliberation."
     )
 
-    # SynthesisChair sends the trigger and @mentions ResearchAgent
     try:
         sender_key, research_id, _ = _load_trigger_config()
         send_message_to_room(
@@ -131,25 +150,21 @@ async def analyze(req: AnalysisRequest):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise HTTPException(
-            status_code=502,
-            detail=f"Failed to send message to Band room: {e}",
-        )
+        raise HTTPException(status_code=502, detail=f"Failed to send message to Band room: {e}")
 
     return AnalysisResponse(
         status="started",
         ticker=ticker,
         room_id=room_id,
         band_room_url=f"https://app.band.ai/chat/{room_id}",
-        message=f"Committee deliberation initiated for {ticker}. Open your Band room to watch the debate.",
+        message=f"Committee deliberation initiated for {ticker}.",
         committee_id=committee_id,
+        demo_mode=False,
     )
 
 
 @app.get("/room-status")
 async def room_status():
-    """Returns the real Band room message history so the dashboard can reflect
-    actual deliberation state instead of a scripted animation."""
     room_id = os.getenv("BAND_ROOM_ID", "")
     if not room_id:
         raise HTTPException(status_code=503, detail="BAND_ROOM_ID not configured")
@@ -165,8 +180,8 @@ async def room_status():
 
 @app.post("/approve")
 async def approve(req: ApprovalRequest):
-    """Posts the human chairperson's decision into the real Band room, @mentioning
-    SynthesisChair so it posts the acknowledgement and closes the deliberation."""
+    if _is_demo_mode():
+        return {"status": "demo"}
     room_id = os.getenv("BAND_ROOM_ID", "")
     human_key = os.getenv("BAND_API_KEY", "")
     if not room_id or not human_key:
@@ -174,12 +189,7 @@ async def approve(req: ApprovalRequest):
     try:
         synthesis_id = _load_synthesis_agent_id()
         text = f"@SynthesisChair {req.decision} — {req.verdict}"
-        send_human_message(
-            room_id=room_id,
-            text=text,
-            human_api_key=human_key,
-            mention_agent_id=synthesis_id,
-        )
+        send_human_message(room_id=room_id, text=text, human_api_key=human_key, mention_agent_id=synthesis_id)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Failed to post approval: {e}")
     return {"status": "sent"}
@@ -187,7 +197,8 @@ async def approve(req: ApprovalRequest):
 
 @app.post("/ask")
 async def ask(req: AskRequest):
-    """Posts a human question into the Band room, visible to all agents."""
+    if _is_demo_mode():
+        return {"status": "demo"}
     room_id = os.getenv("BAND_ROOM_ID", "")
     human_key = os.getenv("BAND_API_KEY", "")
     if not room_id or not human_key:
@@ -195,12 +206,7 @@ async def ask(req: AskRequest):
     try:
         synthesis_id = _load_synthesis_agent_id()
         text = f"@SynthesisChair QUESTION — {req.question}"
-        send_human_message(
-            room_id=room_id,
-            text=text,
-            human_api_key=human_key,
-            mention_agent_id=synthesis_id,
-        )
+        send_human_message(room_id=room_id, text=text, human_api_key=human_key, mention_agent_id=synthesis_id)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Failed to post question: {e}")
     return {"status": "sent"}

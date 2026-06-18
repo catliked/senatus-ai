@@ -1,8 +1,7 @@
 """
 ComplianceOfficer — Senatus AI Investment Committee
-Role: Regulatory guardian. Scans the full room discussion for red flags.
-Can escalate to human (pausing the workflow) or clear the committee to proceed.
-Model: claude-haiku-4-5-20251001 (precise instruction-following)
+Role: Regulatory guardian. Clears or holds the investment for compliance reasons.
+Model: claude-haiku-4-5-20251001 via AI/ML API
 """
 import asyncio
 import sys
@@ -14,7 +13,6 @@ from dotenv import load_dotenv
 from anthropic import AsyncAnthropic
 from band import Agent
 from band.config.loader import load_agent_config
-from utils.openrouter_bridge import OpenRouterBridge
 from utils.workflow_gate import GatedAdapter
 
 
@@ -53,23 +51,16 @@ async def main():
             adapter = GatedAdapter(
                 model="claude-haiku-4-5-20251001",
                 prompt=SYSTEM_PROMPT,
-                provider_key=os.environ.get("AIML_API_KEY", "placeholder"),
+                provider_key=os.environ["AIML_API_KEY"],
                 should_respond=should_respond,
             )
-            if os.environ.get("OPENROUTER_API_KEY"):
-                adapter.client = OpenRouterBridge(
-                    api_key=os.environ["OPENROUTER_API_KEY"],
-                    model=os.environ.get("OPENROUTER_MODEL", "mistralai/mistral-7b-instruct:free"),
-                )
-                print("[ComplianceOfficer] Using OpenRouter (free tier)")
-            else:
-                adapter.client = AsyncAnthropic(
-                    api_key=os.environ["AIML_API_KEY"],
-                    base_url="https://api.aimlapi.com",
-                )
-                print("[ComplianceOfficer] Using AI/ML API")
+            adapter.client = AsyncAnthropic(
+                api_key=os.environ["AIML_API_KEY"],
+                base_url="https://api.aimlapi.com",
+            )
+            print("[ComplianceOfficer] Using AI/ML API (claude-haiku-4-5)")
             agent = Agent.create(adapter=adapter, agent_id=agent_id, api_key=api_key)
-            print("[ComplianceOfficer] Connected to Band. Listening for @mentions...")
+            print("[ComplianceOfficer] Connected to Band. Listening...")
             await agent.run()
         except Exception as e:
             print(f"[ComplianceOfficer] Disconnected: {e}. Reconnecting in 3s...")

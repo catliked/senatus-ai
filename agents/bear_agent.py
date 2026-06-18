@@ -1,8 +1,7 @@
 """
 BearAnalyst — Senatus AI Investment Committee
-Role: Adversarially argues AGAINST the investment. Directly challenges BullAnalyst's
-specific claims using the same data. Submits MOTION: AVOID.
-Model: claude-sonnet-4-6 (stronger reasoning — adversarial logic is harder)
+Role: Adversarially challenges the bull thesis.
+Model: claude-sonnet-4-6 via AI/ML API
 """
 import asyncio
 import sys
@@ -14,7 +13,6 @@ from dotenv import load_dotenv
 from anthropic import AsyncAnthropic
 from band import Agent
 from band.config.loader import load_agent_config
-from utils.openrouter_bridge import OpenRouterBridge
 from utils.workflow_gate import GatedAdapter
 
 
@@ -53,25 +51,18 @@ async def main():
     while True:
         try:
             adapter = GatedAdapter(
-                model="claude-sonnet-4-6",  # haiku for testing, sonnet for demo
+                model="claude-sonnet-4-6",
                 prompt=SYSTEM_PROMPT,
-                provider_key=os.environ.get("AIML_API_KEY", "placeholder"),
+                provider_key=os.environ["AIML_API_KEY"],
                 should_respond=should_respond,
             )
-            if os.environ.get("OPENROUTER_API_KEY"):
-                adapter.client = OpenRouterBridge(
-                    api_key=os.environ["OPENROUTER_API_KEY"],
-                    model=os.environ.get("OPENROUTER_MODEL", "mistralai/mistral-7b-instruct:free"),
-                )
-                print("[BearAnalyst] Using OpenRouter (free tier)")
-            else:
-                adapter.client = AsyncAnthropic(
-                    api_key=os.environ["AIML_API_KEY"],
-                    base_url="https://api.aimlapi.com",
-                )
-                print("[BearAnalyst] Using AI/ML API")
+            adapter.client = AsyncAnthropic(
+                api_key=os.environ["AIML_API_KEY"],
+                base_url="https://api.aimlapi.com",
+            )
+            print("[BearAnalyst] Using AI/ML API (claude-sonnet-4-6)")
             agent = Agent.create(adapter=adapter, agent_id=agent_id, api_key=api_key)
-            print("[BearAnalyst] Connected to Band. Listening for @mentions...")
+            print("[BearAnalyst] Connected to Band. Listening...")
             await agent.run()
         except Exception as e:
             print(f"[BearAnalyst] Disconnected: {e}. Reconnecting in 3s...")

@@ -188,6 +188,12 @@
     .btn-request{padding:9px;background:transparent;color:var(--dim);border:1px solid var(--border2);border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;}
     .btn-approve:disabled,.btn-override:disabled,.btn-request:disabled{opacity:.3;cursor:not-allowed;}
 
+    /* ── DEMO BANNER ── */
+    .demo-banner{display:none;align-items:center;gap:10px;padding:7px 20px;background:rgba(245,158,11,.1);border-bottom:1px solid rgba(245,158,11,.3);font-size:10px;color:var(--amber);font-weight:600;letter-spacing:.03em;}
+    .demo-banner.visible{display:flex;}
+    .demo-icon{font-size:12px;}
+    .demo-live-btn{margin-left:auto;padding:3px 10px;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);border-radius:3px;color:var(--amber);font-size:9px;font-weight:700;cursor:default;letter-spacing:.04em;}
+
     /* ── COMMITTEE REPORT SUMMARY ── */
     .report-box{padding:12px 18px 14px;border-bottom:1px solid var(--border);}
     .rpt-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;}
@@ -209,6 +215,13 @@
   </style>
 </head>
 <body>
+
+<!-- DEMO MODE BANNER -->
+<div class="demo-banner" id="demoBanner">
+  <span class="demo-icon">⚠</span>
+  DEMO MODE — Showing simulated deliberation. Set AIML_API_KEY and DEMO_MODE=false in .env to enable live AI agents.
+  <span class="demo-live-btn">SIMULATION ACTIVE</span>
+</div>
 
 <!-- NAVBAR -->
 <nav class="nav">
@@ -775,15 +788,19 @@ async function startAnalysis() {
 
     const committeeId = data.committee_id || ('SAI-' + ticker);
     currentCommitteeId = committeeId;
-    showStatus('ok', `Committee ${committeeId} convened for ${ticker}. Watch the Band room for live deliberation.`);
+    showStatus('ok', `Committee ${committeeId} convened for ${ticker}.${data.demo_mode ? ' (Demo simulation)' : ' Watch the Band room for live deliberation.'}`);
     bumpStat('active', 1);
     addAudit('System', `Committee ${committeeId} convened for ${ticker} — ${new Date().toLocaleTimeString()}`);
 
-    // Stage 1 starts immediately; everything after is driven by polling the real Band room.
     setStage(1, 'active', 'ResearchAgent — processing market data…', '');
     setDot('research', 'act');
     addAudit('ResearchAgent', 'Processing market data for ' + ticker);
-    pollBandRoom(ticker);
+
+    if (data.demo_mode) {
+      runDemoSimulation(ticker);
+    } else {
+      pollBandRoom(ticker);
+    }
 
   } catch (err) {
     showStatus('err', 'Failed: ' + err.message);
@@ -968,6 +985,56 @@ async function requestAnalysis() {
   }
 }
 
+function runDemoSimulation(ticker) {
+  const steps = [
+    [3500, () => {
+      setStage(1, 'done', 'Research Report published to room', now());
+      setDot('research', 'on');
+      addAudit('ResearchAgent', 'Research Report posted · @BullAnalyst @BearAnalyst notified');
+      setStage(2, 'active', 'BullAnalyst — building investment case…', '');
+      setDot('bull', 'act');
+    }],
+    [8000, () => {
+      setStage(2, 'done', 'MOTION: BUY filed · Confidence 76%', now());
+      setDot('bull', 'on');
+      setVote('bull', 'BUY 76%', 'vb-buy');
+      addAudit('BullAnalyst', '🟢 MOTION: BUY filed · Confidence 76%');
+      setStage(3, 'active', 'BearAnalyst — adversarial challenge…', '');
+      setDot('bear', 'act');
+    }],
+    [14000, () => {
+      setStage(3, 'done', 'MOTION: AVOID filed · Confidence 68%', now());
+      setDot('bear', 'on');
+      setVote('bear', 'AVOID 68%', 'vb-avoid');
+      addAudit('BearAnalyst', '🔴 MOTION: AVOID filed · Confidence 68%');
+      setStage(4, 'done', 'Debate record closed', now());
+      setStage(5, 'active', 'ComplianceOfficer — regulatory screening…', '');
+      setDot('compliance', 'act');
+    }],
+    [19000, () => {
+      setStage(5, 'done', '✅ COMPLIANCE CLEARED', now());
+      setDot('compliance', 'on');
+      setVote('compliance', 'CLEARED', 'vb-clear');
+      addAudit('ComplianceOfficer', '✅ COMPLIANCE CLEARED · @SynthesisChair notified');
+      setStage(6, 'active', 'SynthesisChair — tallying motions & synthesizing…', '');
+      setDot('synthesis', 'act');
+      animateRisk([68, 25, 15, 55, 30]);
+    }],
+    [25000, () => {
+      setStage(6, 'done', 'Final verdict delivered · awaiting human', now());
+      setDot('synthesis', 'on');
+      setVote('synthesis', 'BUY 72%', 'vb-buy');
+      addAudit('SynthesisChair', '⚖️ FINAL VERDICT: BUY · Confidence 72%');
+      setStage(7, 'active', 'Awaiting human chairperson approval…', '');
+      addAudit('System', '⏳ AWAITING HUMAN APPROVAL — use the portal below');
+      activatePortal('BUY', 72);
+      populateReport(ticker, 'BUY', '72');
+      finishAnalysis();
+    }],
+  ];
+  steps.forEach(([delay, fn]) => setTimeout(fn, delay));
+}
+
 function populateReport(ticker, verdict, conf) {
   const sel = document.querySelector('.wl-item.sel');
   const pe   = sel ? sel.dataset.pe   : '—';
@@ -1061,6 +1128,9 @@ document.addEventListener('DOMContentLoaded', () => {
   initPriceChart('NVDA');
   initPortChart();
   renderStats();
+  fetch('/health').then(r => r.json()).then(d => {
+    if (d.demo_mode) document.getElementById('demoBanner').classList.add('visible');
+  }).catch(() => {});
   document.getElementById('agentCount').textContent = '5/5 online';
   document.getElementById('mo-text').textContent = 'READY TO ANALYZE: NVDA';
   document.getElementById('mo-conf').textContent = 'Convene the committee to begin deliberation';
