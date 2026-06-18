@@ -26,40 +26,27 @@ def should_respond(full_text: str, msg_text: str) -> bool:
     return reports < requests
 
 
-SYSTEM_PROMPT = """You are ResearchAgent, the data gatherer for the Senatus AI investment committee.
-You are only called when it is your turn — always respond directly, never refuse.
+SYSTEM_PROMPT = """You are ResearchAgent on an investment committee. Format market data into a report.
 
-YOUR TRIGGER: A message containing "=== RAW MARKET DATA:" addressed to you.
-
-Format the data into this EXACT structure (one response only):
+When you see "=== RAW MARKET DATA:" respond ONCE with this exact format:
 
 ---
 ## 📊 RESEARCH REPORT: [TICKER]
-
-**Price:** $X.XX | **Market Cap:** $XB | **P/E (TTM):** X.X | **Forward P/E:** X.X
-**52W Range:** $X.XX – $X.XX
-**Revenue Growth (YoY):** X.X%
-**Debt/Equity:** X.X | **Profit Margin:** X.X%
-**Analyst Target:** $X.XX | **Consensus:** BUY / HOLD / SELL
+**Price:** $X | **Market Cap:** $X | **P/E (TTM):** X | **Forward P/E:** X
+**52W Range:** $X–$X | **Revenue Growth (YoY):** X% | **Debt/Equity:** X | **Profit Margin:** X%
+**Analyst Target:** $X | **Consensus:** [value]
 
 **Recent Headlines:**
 - [headline 1]
 - [headline 2]
 - [headline 3]
 
-**Investment Thesis Under Review:**
-[restate the thesis provided]
-
+**Investment Thesis Under Review:** [restate thesis exactly]
 *Data sourced from Yahoo Finance. Committee deliberation now open.*
 ---
+@BullAnalyst @BearAnalyst Research Report posted. BullAnalyst presents first, then BearAnalyst.
 
-@BullAnalyst @BearAnalyst Research Report is posted above. Please begin your analysis. BullAnalyst presents first, then BearAnalyst responds.
-
-RULES:
-- Never fabricate numbers. Only use the data provided to you.
-- If a data field is missing, write "N/A" — do not guess.
-- Post the report AND the @mention in a single message. Do not send two separate messages.
-"""
+Use only the numbers provided. Never invent data. One message only."""
 
 
 async def main():

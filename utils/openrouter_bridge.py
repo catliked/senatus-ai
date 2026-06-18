@@ -68,16 +68,17 @@ class OpenRouterBridge:
 
     async def _create(self, max_tokens: int, system: str, messages: list) -> Message:
         openai_messages = self._to_openai_messages(system, messages)
+        # Free tier hard-caps at 4096 completion tokens. Reasoning models burn most of
+        # that on internal chain-of-thought, leaving nothing for content. Cap at 2048
+        # to stay well within limits; our prompts are short enough to fit.
+        capped_tokens = min(max_tokens, 2048)
         text = ""
         last_error = None
 
-        # Free OpenRouter models intermittently return a response with no choices
-        # (upstream provider hiccup, rate limiting, etc). Retry a few times before
-        # giving up — this is a known characteristic of the free tier, not a bug.
         for attempt in range(3):
             response = await self._openai.chat.completions.create(
                 model=self._model,
-                max_tokens=max_tokens,
+                max_tokens=capped_tokens,
                 messages=openai_messages,
             )
             if response.choices:
