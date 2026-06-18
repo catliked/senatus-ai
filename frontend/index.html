@@ -1079,42 +1079,98 @@ function updateReportHumanDecision(decision, verdict) {
 
 function exportReport() {
   const sel = document.querySelector('.wl-item.sel');
-  const report = {
-    committee_id: currentCommitteeId || ('SAI-' + currentTicker),
-    ticker: currentTicker,
-    company: sel ? sel.dataset.co : currentTicker,
-    generated_at: new Date().toISOString(),
-    market_data: {
-      price: sel ? sel.dataset.price : '—',
-      pe_ttm: sel ? sel.dataset.pe + 'x' : '—',
-      market_cap: sel ? sel.dataset.cap : '—',
-      revenue_growth: sel ? '+' + sel.dataset.rev : '—',
-      analyst_target: TICKER_TARGET[currentTicker] || '—',
-      consensus: TICKER_CONS[currentTicker] || '—',
-    },
-    committee_votes: {
-      bull:        document.getElementById('vote-bull')?.textContent,
-      bear:        document.getElementById('vote-bear')?.textContent,
-      compliance:  document.getElementById('vote-compliance')?.textContent,
-      synthesis:   document.getElementById('vote-synthesis')?.textContent,
-      human:       document.getElementById('vote-human')?.textContent,
-    },
-    verdict: document.getElementById('vp-verdict')?.textContent,
-    confidence: document.getElementById('rpt-confidence')?.textContent,
-    risk_score: document.getElementById('riskScore')?.textContent,
-    audit_trail: Array.from(document.querySelectorAll('.audit-item')).map(el => ({
-      time: el.querySelector('.a-time')?.textContent,
-      entry: el.querySelector('.a-body')?.textContent,
-    })),
-  };
-  const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+  const cid = currentCommitteeId || ('SAI-' + currentTicker);
+  const ticker = currentTicker;
+  const company = sel ? sel.dataset.co : ticker;
+  const verdict = document.getElementById('vp-verdict')?.textContent || '—';
+  const conf = document.getElementById('rpt-confidence')?.textContent || '—';
+  const risk = document.getElementById('riskScore')?.textContent || '—';
+  const compliance = document.getElementById('rpt-compliance')?.textContent || '—';
+  const humanDec = document.getElementById('rpt-human')?.textContent || 'PENDING';
+  const vColor = verdict === 'BUY' ? '#10b981' : verdict === 'AVOID' ? '#ef4444' : '#f59e0b';
+
+  const auditRows = Array.from(document.querySelectorAll('.audit-item')).reverse().map(el => {
+    const t = el.querySelector('.a-time')?.textContent || '';
+    const b = el.querySelector('.a-body')?.textContent || '';
+    return `<tr><td style="color:#888;white-space:nowrap;padding:4px 12px 4px 0">${t}</td><td style="padding:4px 0">${b}</td></tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>Senatus AI — ${cid}</title>
+<style>
+  body{font-family:'Segoe UI',Arial,sans-serif;max-width:820px;margin:40px auto;padding:0 24px;color:#1a1a2e;font-size:13px;}
+  h1{font-size:22px;font-weight:800;letter-spacing:.04em;margin:0;}
+  h2{font-size:12px;font-weight:600;color:#555;letter-spacing:.1em;text-transform:uppercase;margin:2px 0 0;}
+  .header{border-bottom:3px solid #1a1a2e;padding-bottom:12px;margin-bottom:20px;}
+  .meta{display:flex;gap:40px;margin-bottom:20px;}
+  .meta-item{display:flex;flex-direction:column;gap:2px;}
+  .meta-label{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#888;font-weight:700;}
+  .meta-value{font-size:14px;font-weight:700;}
+  .verdict-box{background:#f8f8f8;border:2px solid ${vColor};border-radius:6px;padding:14px 20px;margin:16px 0;display:flex;align-items:center;gap:20px;}
+  .v-big{font-size:32px;font-weight:900;color:${vColor};letter-spacing:.06em;}
+  .v-detail{flex:1;}
+  .v-detail p{margin:2px 0;font-size:11px;color:#555;}
+  .section{margin:16px 0;}
+  .section-title{font-size:9px;text-transform:uppercase;letter-spacing:.12em;font-weight:700;color:#888;border-bottom:1px solid #ddd;padding-bottom:4px;margin-bottom:8px;}
+  .votes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .vote-card{border:1px solid #ddd;border-radius:4px;padding:8px 10px;}
+  .vote-agent{font-size:10px;font-weight:700;}
+  .vote-role{font-size:9px;color:#888;}
+  .vote-badge{font-size:11px;font-weight:800;margin-top:4px;}
+  .buy{color:#10b981;} .avoid{color:#ef4444;} .hold{color:#f59e0b;}
+  table{width:100%;border-collapse:collapse;font-size:11px;}
+  td{vertical-align:top;border-bottom:1px solid #f0f0f0;}
+  .footer{margin-top:24px;padding-top:12px;border-top:1px solid #ddd;font-size:9px;color:#aaa;text-align:center;}
+  @media print{body{margin:20px;}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>SENATUS AI INVESTMENT COMMITTEE</h1>
+  <h2>Official Deliberation Report &amp; Audit Trail</h2>
+</div>
+<div class="meta">
+  <div class="meta-item"><span class="meta-label">Committee ID</span><span class="meta-value" style="font-family:monospace;font-size:12px">${cid}</span></div>
+  <div class="meta-item"><span class="meta-label">Ticker</span><span class="meta-value">${ticker}</span></div>
+  <div class="meta-item"><span class="meta-label">Company</span><span class="meta-value">${company}</span></div>
+  <div class="meta-item"><span class="meta-label">Generated</span><span class="meta-value" style="font-size:11px">${new Date().toLocaleString()}</span></div>
+</div>
+<div class="verdict-box">
+  <div class="v-big">${verdict}</div>
+  <div class="v-detail">
+    <p><strong>Confidence:</strong> ${conf}</p>
+    <p><strong>Compliance:</strong> ${compliance}</p>
+    <p><strong>Risk Score:</strong> ${risk}</p>
+    <p><strong>Human Decision:</strong> ${humanDec}</p>
+  </div>
+</div>
+<div class="section">
+  <div class="section-title">Committee Votes</div>
+  <div class="votes">
+    <div class="vote-card"><div class="vote-agent">BullAnalyst</div><div class="vote-role">Long thesis</div><div class="vote-badge buy">${document.getElementById('vote-bull')?.textContent || '—'}</div></div>
+    <div class="vote-card"><div class="vote-agent">BearAnalyst</div><div class="vote-role">Short thesis</div><div class="vote-badge avoid">${document.getElementById('vote-bear')?.textContent || '—'}</div></div>
+    <div class="vote-card"><div class="vote-agent">ComplianceOfficer</div><div class="vote-role">Regulatory</div><div class="vote-badge">${document.getElementById('vote-compliance')?.textContent || '—'}</div></div>
+    <div class="vote-card"><div class="vote-agent">SynthesisChair</div><div class="vote-role">Chairperson</div><div class="vote-badge">${document.getElementById('vote-synthesis')?.textContent || '—'}</div></div>
+    <div class="vote-card"><div class="vote-agent">Human Chairperson</div><div class="vote-role">Final authority</div><div class="vote-badge">${document.getElementById('vote-human')?.textContent || '—'}</div></div>
+  </div>
+</div>
+<div class="section">
+  <div class="section-title">Audit Trail</div>
+  <table><tbody>${auditRows}</tbody></table>
+</div>
+<div class="footer">
+  Produced by Senatus AI Investment Committee &bull; ${cid} &bull; All deliberations logged as immutable audit trail<br>
+  ⚠️ This report does not constitute financial advice. Human chairperson approval required before capital deployment.
+</div>
+<script>window.onload=()=>window.print();</script>
+</body></html>`;
+
+  const blob = new Blob([html], { type: 'text/html' });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = (currentCommitteeId || 'senatus-report') + '.json';
-  a.click();
-  URL.revokeObjectURL(url);
-  addAudit('System', '📄 Audit report exported: ' + a.download);
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  addAudit('System', '📄 Audit report opened for print/PDF — ' + cid);
 }
 
 function showStatus(type, msg) {

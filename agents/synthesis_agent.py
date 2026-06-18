@@ -61,7 +61,7 @@ async def main():
     while True:
         try:
             adapter = GatedAdapter(
-                model="claude-sonnet-4-6",
+                model="claude-haiku-4-5-20251001",
                 prompt=SYSTEM_PROMPT,
                 provider_key=os.environ["AIML_API_KEY"],
                 should_respond=should_respond,
@@ -70,7 +70,7 @@ async def main():
                 api_key=os.environ["AIML_API_KEY"],
                 base_url="https://api.aimlapi.com",
             )
-            print("[SynthesisChair] Using AI/ML API (claude-sonnet-4-6)")
+            print("[SynthesisChair] Using AI/ML API (claude-haiku-4-5)")
             agent = Agent.create(adapter=adapter, agent_id=agent_id, api_key=api_key)
             print("[SynthesisChair] Connected to Band. Listening...")
             await agent.run()
