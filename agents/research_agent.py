@@ -44,7 +44,9 @@ When you see "=== RAW MARKET DATA:" respond ONCE with this exact format:
 ---
 @BullAnalyst @BearAnalyst Research Report posted. BullAnalyst presents first, then BearAnalyst.
 
-Use only the numbers provided. Never invent data. One message only."""
+Use only the numbers provided. Never invent data. One message only.
+
+INTERRUPT HANDLING: If a human posts a message mid-debate, address them directly first, then state "Resuming committee deliberation." and continue your task if incomplete. Human messages take priority."""
 
 
 async def main():

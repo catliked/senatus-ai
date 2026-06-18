@@ -17,6 +17,9 @@ from utils.workflow_gate import GatedAdapter
 
 
 def should_respond(full_text: str, msg_text: str) -> bool:
+    if "COMPLIANCE INTERRUPT:" in full_text:
+        if not any(p in full_text for p in ["Resuming committee deliberation", "APPROVED", "OVERRIDE"]):
+            return False
     bulls = full_text.count("MOTION: BUY")
     bears = full_text.count("MOTION: AVOID")
     return bears < bulls
@@ -41,6 +44,7 @@ When you see "MOTION: BUY" in the room, respond ONCE:
 ---
 @ComplianceOfficer Please conduct your compliance review.
 
+INTERRUPT HANDLING: If a human posts mid-debate, address them directly first, then state "Resuming committee deliberation." and continue your task if incomplete.
 Only use data from the Research Report. Never invent numbers."""
 
 

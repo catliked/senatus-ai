@@ -212,6 +212,13 @@
     .rpt-factor{font-size:9px;color:var(--dim);font-style:italic;margin:6px 0;line-height:1.5;padding:5px 8px;background:var(--card2);border-left:2px solid var(--border2);border-radius:2px;}
     .btn-export{width:100%;margin-top:8px;padding:6px;background:transparent;color:var(--dim);border:1px solid var(--border2);border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;letter-spacing:.03em;transition:all .15s;}
     .btn-export:hover{background:var(--card2);color:var(--text);}
+
+    /* ── HUMAN INTERRUPT PANEL ── */
+    .interrupt-box{padding:10px 14px;border-bottom:1px solid var(--border);}
+    .interrupt-select{width:100%;background:rgba(255,255,255,.03);border:1px solid var(--border2);border-radius:4px;padding:5px 8px;color:var(--text);font-size:11px;font-family:inherit;outline:none;margin-bottom:5px;cursor:pointer;}
+    .interrupt-select option{background:var(--card);}
+    .btn-interrupt{width:100%;padding:7px;background:rgba(59,130,246,.1);color:var(--blue);border:1px solid rgba(59,130,246,.3);border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.04em;text-transform:uppercase;transition:all .15s;}
+    .btn-interrupt:hover{background:rgba(59,130,246,.2);}
   </style>
 </head>
 <body>
@@ -412,7 +419,7 @@
       <div class="rpt-row"><span class="rpt-lbl">Risk Score</span><span id="rpt-risk">—</span></div>
       <div class="rpt-row"><span class="rpt-lbl">Human Decision</span><span id="rpt-human">PENDING</span></div>
       <div class="rpt-factor" id="rpt-factor" style="display:none"></div>
-      <button class="btn-export" onclick="exportReport()">↓ Export Audit Report (JSON)</button>
+      <button class="btn-export" onclick="exportReport()">↓ Export & Print Audit Report (PDF)</button>
     </div>
 
     <!-- Audit Trail -->
@@ -463,6 +470,22 @@
       <div class="risk-row"><span class="r-label">Liquidity Risk</span><div class="r-track"><div class="r-fill low" id="r-liq" style="width:0"></div></div><span class="r-num" id="rn-liq">—</span></div>
       <div class="risk-row"><span class="r-label">Market Risk</span><div class="r-track"><div class="r-fill med" id="r-mkt" style="width:0"></div></div><span class="r-num" id="rn-mkt">—</span></div>
       <div class="risk-row"><span class="r-label">Execution Risk</span><div class="r-track"><div class="r-fill low" id="r-exc" style="width:0"></div></div><span class="r-num" id="rn-exc">—</span></div>
+    </div>
+
+    <!-- Human Interrupt Panel — always available -->
+    <div class="sh"><span class="sh-title">Human Interrupt</span><span class="sh-badge" style="color:var(--blue)">ALWAYS OPEN</span></div>
+    <div class="interrupt-box">
+      <label class="fl" for="interruptAgent">Direct to Agent</label>
+      <select class="interrupt-select" id="interruptAgent">
+        <option value="research">ResearchAgent — Data Gatherer</option>
+        <option value="bull">BullAnalyst — Bull Thesis</option>
+        <option value="bear">BearAnalyst — Bear Thesis</option>
+        <option value="compliance">ComplianceOfficer — Regulatory</option>
+        <option value="synthesis" selected>SynthesisChair — Chairperson</option>
+      </select>
+      <label class="fl" for="interruptMsg">Your Message</label>
+      <textarea class="fi" id="interruptMsg" placeholder="E.g. What's the debt situation? / Flag this for compliance. / Pause deliberation." style="min-height:44px;margin-bottom:5px;"></textarea>
+      <button class="btn-interrupt" onclick="humanIntervene()">↑ Send to Committee Mid-Debate</button>
     </div>
 
     <!-- Human Review Portal -->
@@ -677,6 +700,7 @@ function setStage(n, state, detail, time) {
   el.className = 'stage ' + state;
   if (detail) document.getElementById('sd-' + n).textContent = detail;
   if (time) document.getElementById('st-t' + n).textContent = time;
+  if (state === 'active' || state === 'done') currentStage = Math.max(currentStage, n);
 }
 
 function setVote(who, text, cls) {
@@ -715,6 +739,43 @@ function animBar(fillId, numId, val) {
 }
 
 let currentVerdict = '';
+let humanInterjections = [];
+let currentStage = 0;
+
+function humanIntervene() {
+  const agentEl = document.getElementById('interruptAgent');
+  const msgEl = document.getElementById('interruptMsg');
+  const q = msgEl.value.trim();
+  if (!q) { showStatus('err', 'Enter a message before sending.'); return; }
+
+  const stageLabels = ['', 'research_brief', 'bull_thesis', 'bear_thesis', 'debate_closed', 'compliance_review', 'final_synthesis', 'human_review'];
+  const stage = stageLabels[currentStage] || 'pre_deliberation';
+  const agent = agentEl.value;
+  const agentNames = { research:'ResearchAgent', bull:'BullAnalyst', bear:'BearAnalyst', compliance:'ComplianceOfficer', synthesis:'SynthesisChair' };
+
+  humanInterjections.push({ timestamp: new Date().toISOString(), stage, message: q, respondingAgent: agentNames[agent] || agent });
+  addAudit('Human', `💬 INTERRUPT @${agentNames[agent]} [stage: ${stage}] — "${q}"`);
+
+  fetch('/intervene', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: q, mention_agent: agent }),
+  }).then(r => r.json()).then(d => {
+    if (d.status === 'demo') {
+      showStatus('ok', `[Demo] Interrupt recorded. In live mode this would post to ${agentNames[agent]} in Band.`);
+    } else {
+      showStatus('ok', `Message sent to @${agentNames[agent]}. Watch Band room for response.`);
+      // If debate mid-stream, flag the active stage as paused
+      if (currentStage > 0 && currentStage < 6) {
+        addAudit('System', '⏸️ Committee deliberation paused pending human input. Awaiting agent response.');
+      }
+    }
+    msgEl.value = '';
+  }).catch(e => {
+    showStatus('err', 'Network error: ' + e.message);
+  });
+}
+
 function activatePortal(verdict, confidence) {
   currentVerdict = verdict;
   const vl = verdict.toLowerCase();
@@ -752,6 +813,8 @@ async function startAnalysis() {
   showStatus('loading', 'Fetching market data and sending to Band room…');
 
   // Reset state
+  humanInterjections = [];
+  currentStage = 0;
   for (let i = 1; i <= 7; i++) setStage(i, '', null, '—');
   setVote('bull','—','vb-pend'); setVote('bear','—','vb-pend');
   setVote('compliance','—','vb-pend'); setVote('synthesis','—','vb-pend');
@@ -832,15 +895,27 @@ function pollBandRoom(ticker) {
   const TIMEOUT_MS = 6 * 60 * 1000;
 
   pollTimer = setInterval(async () => {
-    if (Date.now() - startedAt > TIMEOUT_MS) {
-      addAudit('System', '⏱️ No verdict yet after 6 min — check the agent terminals or Band room directly.');
+    const elapsed = Date.now() - startedAt;
+    if (elapsed > TIMEOUT_MS) {
+      addAudit('System', '⏱️ No verdict after 6 min — check agent terminals or Band room directly.');
       finishAnalysis();
       return;
+    }
+    // Stall warning at 90s if research hasn't appeared yet
+    if (!seen.research && elapsed > 90000 && !seen._warnedStall) {
+      seen._warnedStall = true;
+      showStatus('err', '⚠️ Agents not responding after 90s. Possible causes: (1) API credits exhausted / cap hit, (2) agents not running. Check terminal output.');
+      addAudit('System', '⚠️ No Research Report after 90s — agents may be offline. Check AIML_API_KEY cap limit and agent terminal output.');
     }
     try {
       const res = await fetch('/room-status');
       if (!res.ok) return;
       const data = await res.json();
+      // Surface any API error the backend detected
+      if (data.api_error) {
+        addAudit('System', '❌ API Error: ' + data.api_error);
+        showStatus('err', '❌ ' + data.api_error);
+      }
       processRoomMessages(data.messages || [], ticker, seen);
     } catch (e) { /* transient network error, keep polling */ }
   }, 4000);
@@ -889,6 +964,19 @@ function processRoomMessages(messages, ticker, seen) {
     setStage(4, 'done', 'Debate record closed', now());
     setStage(5, 'active', 'ComplianceOfficer — regulatory screening…', '');
     setDot('compliance', 'act');
+  }
+  if (!seen.complianceInterrupt && fullText.includes('COMPLIANCE INTERRUPT:')) {
+    seen.complianceInterrupt = true;
+    // Flag whichever stage is currently active as warn (paused)
+    for (let i = 1; i <= 6; i++) {
+      const el = document.getElementById('st-' + i);
+      if (el && el.classList.contains('active')) {
+        el.className = 'stage warn';
+        document.getElementById('sd-' + i).textContent = '⚠️ Paused — Compliance interrupt detected';
+      }
+    }
+    addAudit('ComplianceOfficer', '⚠️ COMPLIANCE INTERRUPT — deliberation paused. Use the Human Interrupt panel to respond.');
+    showStatus('err', '⚠️ Compliance interrupt detected. Post a message via the Human Interrupt panel to resume.');
   }
   if (!seen.compliance && (fullText.includes('COMPLIANCE CLEARED') || fullText.includes('HOLD PENDING REVIEW'))) {
     seen.compliance = true;
@@ -1089,6 +1177,16 @@ function exportReport() {
   const humanDec = document.getElementById('rpt-human')?.textContent || 'PENDING';
   const vColor = verdict === 'BUY' ? '#10b981' : verdict === 'AVOID' ? '#ef4444' : '#f59e0b';
 
+  const interjectRows = humanInterjections.map(i => {
+    const t = new Date(i.timestamp).toLocaleTimeString('en-US', { hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    return `<tr><td style="color:#888;white-space:nowrap;padding:4px 12px 4px 0">${t}</td><td style="padding:4px 0"><strong>Stage: ${i.stage}</strong> — ${i.message}<br><em style="color:#888">→ directed to @${i.respondingAgent}</em></td></tr>`;
+  }).join('');
+  const interjectSection = humanInterjections.length > 0 ? `
+<div class="section">
+  <div class="section-title">Human Interjections During Deliberation (${humanInterjections.length})</div>
+  <table><tbody>${interjectRows}</tbody></table>
+</div>` : '';
+
   const auditRows = Array.from(document.querySelectorAll('.audit-item')).reverse().map(el => {
     const t = el.querySelector('.a-time')?.textContent || '';
     const b = el.querySelector('.a-body')?.textContent || '';
@@ -1155,6 +1253,7 @@ function exportReport() {
     <div class="vote-card"><div class="vote-agent">Human Chairperson</div><div class="vote-role">Final authority</div><div class="vote-badge">${document.getElementById('vote-human')?.textContent || '—'}</div></div>
   </div>
 </div>
+${interjectSection}
 <div class="section">
   <div class="section-title">Audit Trail</div>
   <table><tbody>${auditRows}</tbody></table>
@@ -1163,7 +1262,7 @@ function exportReport() {
   Produced by Senatus AI Investment Committee &bull; ${cid} &bull; All deliberations logged as immutable audit trail<br>
   ⚠️ This report does not constitute financial advice. Human chairperson approval required before capital deployment.
 </div>
-<script>window.onload=()=>window.print();</script>
+<script>window.onload=()=>window.print();\x3C/script>
 </body></html>`;
 
   const blob = new Blob([html], { type: 'text/html' });

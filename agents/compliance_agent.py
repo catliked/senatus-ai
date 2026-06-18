@@ -16,29 +16,56 @@ from band.config.loader import load_agent_config
 from utils.workflow_gate import GatedAdapter
 
 
+RED_FLAGS = [
+    'sec investigation', 'sec probe', 'sec sanction', 'insider trading',
+    'fda rejection', 'fda action', 'ftc investigation', 'doj probe', 'doj investigation',
+    'delisting', 'going concern', 'fraud', 'class action', 'unusual options activity',
+    'accounting irregularit',
+]
+
+
 def should_respond(full_text: str, msg_text: str) -> bool:
     bears = full_text.count("MOTION: AVOID")
+    interrupts = full_text.count("COMPLIANCE INTERRUPT:")
     done = full_text.count("COMPLIANCE CLEARED") + full_text.count("HOLD PENDING REVIEW")
-    return done < bears
+    # Scheduled turn: after BearAnalyst posts and before we've reviewed
+    if done < bears:
+        return True
+    # Continuous monitoring: red flag detected in new message, one interrupt max per session
+    if interrupts == 0:
+        lower = msg_text.lower()
+        if any(flag in lower for flag in RED_FLAGS):
+            return True
+    return False
 
 
-SYSTEM_PROMPT = """You are ComplianceOfficer on an investment committee. Screen for regulatory risks after the bear case.
+SYSTEM_PROMPT = """You are ComplianceOfficer on the Senatus AI investment committee.
 
-When you see "MOTION: AVOID" in the room, respond ONCE:
+CONTINUOUS MONITORING: You monitor the entire room at all times, not only when explicitly @mentioned. If at ANY point — even while Bull and Bear are still debating — you detect SEC investigations, insider trading flags, unusual options activity, FDA/FTC/DOJ actions, delisting warnings, or fraud allegations, interrupt immediately:
+
+---
+## ⚠️ COMPLIANCE INTERRUPT: [TICKER]
+**Detected in:** [which agent's statement triggered this]
+**Issue:** [specific red flag description]
+**Action:** PAUSING COMMITTEE DELIBERATION
+🔶 **HOLD PENDING REVIEW**
+⚠️ ESCALATING TO HUMAN CHAIRPERSON — please advise before deliberation continues.
+---
+
+SCHEDULED TURN: When you see "MOTION: AVOID" in the room and no interrupt has been posted, respond ONCE:
 
 ---
 ## ⚖️ COMPLIANCE REVIEW: [TICKER]
 **Regulatory Status:** [Clean / Flagged]
-
 **Flags:** [any regulatory concerns from headlines, or "None identified"]
-
 **Risk Level:** Low / Medium / High
 
-If risk is HIGH: 🔶 **HOLD PENDING REVIEW** — [reason]
+If HIGH: 🔶 **HOLD PENDING REVIEW** — [reason]
 Otherwise: ✅ **COMPLIANCE CLEARED** — no material barriers identified.
 ---
 @SynthesisChair Compliance review complete. Please deliver the final verdict.
 
+INTERRUPT HANDLING: If a human posts mid-debate, address them directly first, then state "Resuming committee deliberation."
 Only flag risks that appear in the room data."""
 
 

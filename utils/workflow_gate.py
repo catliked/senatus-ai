@@ -47,16 +47,44 @@ class GatedAdapter(AnthropicAdapter):
         is_session_bootstrap,
         room_id,
     ):
+        # Skip replayed historical messages on reconnect — these already happened.
+        # New messages (is_session_bootstrap=False) are processed normally.
+        if is_session_bootstrap:
+            return
+
         msg_text = msg.format_for_llm() if hasattr(msg, "format_for_llm") else str(msg)
+        # Use full history for accurate gating counts (should_respond)
         full_text = history_to_text(history) + "\n" + msg_text
         if not self._should_respond(full_text, msg_text):
             return
-        await super().on_message(
-            msg,
-            tools,
-            history,
-            participants_msg,
-            contacts_msg,
-            is_session_bootstrap=is_session_bootstrap,
-            room_id=room_id,
-        )
+
+        # Truncate history sent to LLM to control input token cost.
+        # Full history is already used above for gating — the LLM only needs recent context.
+        MAX_HISTORY = 15
+        recent_history = list(history)[-MAX_HISTORY:] if len(history) > MAX_HISTORY else history
+
+        try:
+            await super().on_message(
+                msg,
+                tools,
+                recent_history,
+                participants_msg,
+                contacts_msg,
+                is_session_bootstrap=is_session_bootstrap,
+                room_id=room_id,
+            )
+        except Exception as e:
+            err = str(e).lower()
+            if any(x in err for x in ['credit', 'billing', 'quota', 'insufficient', 'balance', '402', 'payment']):
+                print("\n" + "=" * 60)
+                print("⚠️  API CREDITS EXHAUSTED — top up at aimlapi.com or set DEMO_MODE=true in .env")
+                print(f"   Error: {e}")
+                print("=" * 60 + "\n")
+            elif any(x in err for x in ['auth', 'invalid', 'unauthorized', '401', '403', 'api key', 'api-key']):
+                print("\n" + "=" * 60)
+                print("❌  INVALID / BLOCKED API KEY — check AIML_API_KEY in .env")
+                print(f"   Error: {e}")
+                print("=" * 60 + "\n")
+            else:
+                print(f"[Agent LLM Error] {type(e).__name__}: {e}")
+            raise

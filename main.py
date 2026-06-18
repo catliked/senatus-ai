@@ -80,6 +80,30 @@ class AskRequest(BaseModel):
     question: str
 
 
+class InterveneRequest(BaseModel):
+    message: str
+    mention_agent: str = "synthesis"  # research | bull | bear | compliance | synthesis
+
+
+AGENT_DISPLAY_NAMES = {
+    "research": "ResearchAgent",
+    "bull": "BullAnalyst",
+    "bear": "BearAnalyst",
+    "compliance": "ComplianceOfficer",
+    "synthesis": "SynthesisChair",
+}
+
+
+def _load_agent_id(agent_name: str) -> str:
+    """Return the Band agent UUID for the given agent key."""
+    agent_name = agent_name.lower()
+    if agent_name not in AGENT_DISPLAY_NAMES:
+        raise ValueError(f"Unknown agent '{agent_name}'. Must be one of: {list(AGENT_DISPLAY_NAMES)}")
+    with open("agent_config.yaml", "r") as f:
+        config = yaml.safe_load(f)
+    return config[agent_name]["agent_id"]
+
+
 @app.get("/")
 async def root():
     return FileResponse("frontend/index.html")
@@ -192,6 +216,27 @@ async def approve(req: ApprovalRequest):
         send_human_message(room_id=room_id, text=text, human_api_key=human_key, mention_agent_id=synthesis_id)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Failed to post approval: {e}")
+    return {"status": "sent"}
+
+
+@app.post("/intervene")
+async def intervene(req: InterveneRequest):
+    """Human sends a message mid-debate to any agent, bypassing the fixed sequence."""
+    if _is_demo_mode():
+        return {"status": "demo"}
+    room_id = os.getenv("BAND_ROOM_ID", "")
+    human_key = os.getenv("BAND_API_KEY", "")
+    if not room_id or not human_key:
+        raise HTTPException(status_code=503, detail="BAND_ROOM_ID or BAND_API_KEY not configured")
+    try:
+        agent_id = _load_agent_id(req.mention_agent)
+        display_name = AGENT_DISPLAY_NAMES[req.mention_agent.lower()]
+        text = f"@{display_name} [HUMAN INTERRUPT] {req.message}"
+        send_human_message(room_id=room_id, text=text, human_api_key=human_key, mention_agent_id=agent_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to post intervention: {e}")
     return {"status": "sent"}
 
 

@@ -20,6 +20,9 @@ def should_respond(full_text: str, msg_text: str) -> bool:
     stripped = msg_text.strip().upper()
     if stripped.startswith("APPROVED") or stripped.startswith("OVERRIDE"):
         return "Human chairperson has approved" not in full_text
+    # Don't synthesize from a mid-debate compliance interrupt (Bear hasn't posted yet)
+    if "COMPLIANCE INTERRUPT:" in full_text and "MOTION: AVOID" not in full_text:
+        return False
     done = full_text.count("COMPLIANCE CLEARED") + full_text.count("HOLD PENDING REVIEW")
     verdicts = full_text.count("Final Verdict:")
     return verdicts < done
@@ -51,7 +54,9 @@ TRIGGER 1 — After compliance posts: deliver final verdict ONCE.
 TRIGGER 2 — Human says APPROVED or OVERRIDE: reply with exactly:
 "✅ Human chairperson has approved [VERDICT]. Decision logged. Audit trail complete."
 
-If compliance said HOLD, your verdict is HOLD unless human overrides."""
+If compliance said HOLD, your verdict is HOLD unless human overrides.
+
+INTERRUPT HANDLING: If a human posts mid-debate, address them directly first, then state "Resuming committee deliberation." Human messages take priority."""
 
 
 async def main():
