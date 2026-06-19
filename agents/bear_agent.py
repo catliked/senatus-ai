@@ -1,7 +1,7 @@
 """
 BearAnalyst — Senatus AI Investment Committee
 Role: Adversarially challenges the bull thesis.
-Model: claude-sonnet-4-6 via AI/ML API
+Model: deepseek-r1 via AI/ML API (reasoning-tier, adversarial challenge)
 """
 import asyncio
 import sys
@@ -10,10 +10,10 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
-from anthropic import AsyncAnthropic
 from band import Agent
 from band.config.loader import load_agent_config
 from utils.workflow_gate import GatedAdapter
+from utils.openai_shim import OpenAIShimClient
 
 
 def should_respond(full_text: str, msg_text: str) -> bool:
@@ -55,16 +55,16 @@ async def main():
     while True:
         try:
             adapter = GatedAdapter(
-                model="claude-haiku-4-5-20251001",
+                model="deepseek-r1",
                 prompt=SYSTEM_PROMPT,
                 provider_key=os.environ["AIML_API_KEY"],
                 should_respond=should_respond,
             )
-            adapter.client = AsyncAnthropic(
+            adapter.client = OpenAIShimClient(
                 api_key=os.environ["AIML_API_KEY"],
-                base_url="https://api.aimlapi.com",
+                base_url="https://api.aimlapi.com/v1",
             )
-            print("[BearAnalyst] Using AI/ML API (claude-haiku-4-5)")
+            print("[BearAnalyst] Using AI/ML API (deepseek-r1)")
             agent = Agent.create(adapter=adapter, agent_id=agent_id, api_key=api_key)
             print("[BearAnalyst] Connected to Band. Listening...")
             await agent.run()

@@ -1,7 +1,7 @@
 """
 ComplianceOfficer — Senatus AI Investment Committee
 Role: Regulatory guardian. Clears or holds the investment for compliance reasons.
-Model: claude-haiku-4-5-20251001 via AI/ML API
+Model: claude-3-5-sonnet-20241022 via AI/ML API (precision-tier, strict instruction-following)
 """
 import asyncio
 import sys
@@ -76,7 +76,7 @@ async def main():
     while True:
         try:
             adapter = GatedAdapter(
-                model="claude-haiku-4-5-20251001",
+                model="claude-3-5-sonnet-20241022",
                 prompt=SYSTEM_PROMPT,
                 provider_key=os.environ["AIML_API_KEY"],
                 should_respond=should_respond,
@@ -85,7 +85,7 @@ async def main():
                 api_key=os.environ["AIML_API_KEY"],
                 base_url="https://api.aimlapi.com",
             )
-            print("[ComplianceOfficer] Using AI/ML API (claude-haiku-4-5)")
+            print("[ComplianceOfficer] Using AI/ML API (claude-3-5-sonnet)")
             agent = Agent.create(adapter=adapter, agent_id=agent_id, api_key=api_key)
             print("[ComplianceOfficer] Connected to Band. Listening...")
             await agent.run()
